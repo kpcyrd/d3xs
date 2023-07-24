@@ -1,0 +1,39 @@
+:root {
+    --green: #387D27;
+}
+
+body {
+    min-height: 100vh;
+    color: var(--green);
+    background-color: black;
+    font-family: monospace;
+
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    margin: 0;
+    padding: 0 10px;
+}
+
+.offline {
+    filter: grayscale(1);
+}
+
+#container {
+    width: 100%;
+    padding: 25px 0;
+    box-sizing: border-box;
+}
+
+.slider {
+    height: 50px;
+    width: 150px;
+    border: 2px solid var(--green);
+    font-weight: bold;
+    font-size: 16px;
+    user-select: none;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

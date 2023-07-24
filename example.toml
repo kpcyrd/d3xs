@@ -1,0 +1,10 @@
+[users.alice]
+authorize = ["home", "building"]
+
+[users.bob]
+
+[doors.home]
+label = "Home"
+
+[doors.building]
+label = "Building"
