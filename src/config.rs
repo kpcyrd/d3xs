@@ -14,7 +14,10 @@ pub struct Config {
 
 impl Config {
     pub async fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let buf = fs::read_to_string(path).await?;
+        let path = path.as_ref();
+        let buf = fs::read_to_string(path)
+            .await
+            .with_context(|| anyhow!("Failed to load config from {path:?}"))?;
         Self::parse(&buf)
     }
 

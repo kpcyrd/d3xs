@@ -3,9 +3,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, clap::Parser)]
 pub struct Args {
-    #[arg(short, long)]
+    #[arg(short, long, env = "D3XS_CONFIG")]
     pub config: PathBuf,
-    #[arg(short = 'B', long)]
+    #[arg(short = 'B', long, env = "D3XS_BIND")]
     pub bind: SocketAddr,
     /// Increase logging output (can be used multiple times)
     #[arg(short, long, global = true, action(clap::ArgAction::Count))]
