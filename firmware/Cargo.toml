@@ -1,0 +1,12 @@
+[package]
+name = "d3xs-firmware"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+esp-backtrace = { version = "0.8.0", features = ["esp32c3", "panic-handler", "exception-handler", "print-uart"] }
+esp-println = { version = "0.6.0", features = ["esp32c3"] }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", default-features = false, features = ["esp32c3", "ble"] }
+hal = { package = "esp32c3-hal", version = "0.12.0" }

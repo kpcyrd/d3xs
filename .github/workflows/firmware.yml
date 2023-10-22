@@ -1,0 +1,19 @@
+name: Firmware
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 9 * * 1'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup component add rust-src
+    - run: rustup target add riscv32imc-unknown-none-elf
+    - run: RUSTC_BOOTSTRAP=1 cargo build --release --target riscv32imc-unknown-none-elf
+      working-directory: firmware/
