@@ -8,6 +8,14 @@ edition = "2021"
 [workspace]
 members = ["firmware"]
 
+# related to firmware, but needs to be specified at workspace root
+[profile.dev.package.esp-wifi]
+opt-level = 3
+[profile.dev]
+lto = "off"
+[profile.release]
+lto = "off"
+
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.3.19", features = ["derive", "env"] }

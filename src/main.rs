@@ -43,7 +43,9 @@ async fn show_page(
     hb: Arc<Handlebars<'_>>,
     user: String,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let Some(_config) = config.users.get(&user) else { return Ok(Box::new(StatusCode::NOT_FOUND)) };
+    let Some(_config) = config.users.get(&user) else {
+        return Ok(Box::new(StatusCode::NOT_FOUND));
+    };
     let html = match hb.render(
         "index.html",
         &json!({
@@ -100,7 +102,9 @@ async fn websocket(
     ws: warp::ws::Ws,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
     let mut doors = config.doors.clone();
-    let Some(config) = config.users.get(&user) else { return Ok(Box::new(StatusCode::NOT_FOUND)) };
+    let Some(config) = config.users.get(&user) else {
+        return Ok(Box::new(StatusCode::NOT_FOUND));
+    };
     let config = config.clone();
     debug!(
         "Received client connection: user={:?} config={:?}",

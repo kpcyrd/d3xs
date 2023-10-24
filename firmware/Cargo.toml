@@ -6,7 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
+thiserror-no-std = "2.0.2"
+
+[target.'cfg(target_os = "none")'.dependencies]
 esp-backtrace = { version = "0.8.0", features = ["esp32c3", "panic-handler", "exception-handler", "print-uart"] }
 esp-println = { version = "0.6.0", features = ["esp32c3"] }
 esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", default-features = false, features = ["esp32c3", "ble"] }
 hal = { package = "esp32c3-hal", version = "0.12.0" }
+
+[target.'cfg(not(target_os = "none"))'.dependencies]
+getrandom = "0.2.10"
+libc-print = "0.1.22"
