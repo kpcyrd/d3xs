@@ -25,13 +25,11 @@ fn main() -> ! {
 
     println!("[~] hello, world!");
 
-    /*
     println!("Testing encryption...");
     if crypto::test_sodium_crypto().is_ok() {
         println!("Tests have passed ✨");
     }
     println!("All clear ✅");
-    */
 
     let ble_device = BLEDevice::take();
 
