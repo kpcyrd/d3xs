@@ -4,41 +4,19 @@ use crypto_box::{aead::AeadInPlace, Nonce, PublicKey, SalsaBox, SecretKey, Tag};
 const CRYPTO_TAG_SIZE: usize = 16;
 const CRYPTO_NONCE_SIZE: usize = 24;
 
-#[cfg(target_os = "none")]
-use esp_backtrace as _;
-#[cfg(target_os = "none")]
-use hal::prelude::*;
-
-pub struct Rng {
-    #[cfg(target_os = "none")]
-    rng: hal::Rng,
-}
-
-#[cfg(target_os = "none")]
-impl From<hal::Rng> for Rng {
-    fn from(rng: hal::Rng) -> Self {
-        Self { rng }
+#[cfg(target_os = "espidf")]
+pub fn getrandom(buf: &mut [u8]) {
+    for i in 0..buf.len() {
+        buf[i] = unsafe { esp_idf_svc::sys::random() } as u8;
     }
 }
 
-impl Rng {
-    #[cfg(target_os = "none")]
-    pub fn getrandom(&mut self, buf: &mut [u8]) {
-        self.rng.read(buf).unwrap();
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
-    pub fn getrandom(&mut self, buf: &mut [u8]) {
-        getrandom::getrandom(buf).unwrap();
-    }
+#[cfg(not(target_os = "espidf"))]
+pub fn getrandom(buf: &mut [u8]) {
+    getrandom::getrandom(buf).unwrap();
 }
 
-fn encrypt<'a>(
-    salsa: &SalsaBox,
-    rng: &mut Rng,
-    src: &[u8],
-    dest: &'a mut [u8],
-) -> Result<&'a [u8]> {
+fn encrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [u8]> {
     let buffer_size = dest.len();
     if buffer_size < src.len() + CRYPTO_NONCE_SIZE + CRYPTO_TAG_SIZE {
         return Err(Error::BufferLimit);
@@ -48,7 +26,7 @@ fn encrypt<'a>(
         let (nonce, cursor) = dest.split_at_mut(CRYPTO_NONCE_SIZE);
         let nonce = {
             let mut buf = [0u8; CRYPTO_NONCE_SIZE];
-            rng.getrandom(&mut buf);
+            getrandom(&mut buf);
             nonce.copy_from_slice(&buf);
             Nonce::from(buf)
         };
@@ -93,20 +71,20 @@ fn decrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [
     Ok(dest)
 }
 
-pub fn generate_secret_key(rng: &mut Rng) -> SecretKey {
+pub fn generate_secret_key() -> SecretKey {
     let mut buf = [0u8; crypto_box::KEY_SIZE];
-    rng.getrandom(&mut buf);
+    getrandom(&mut buf);
     SecretKey::from_bytes(buf)
 }
 
-pub fn test_sodium_crypto(rng: &mut Rng) -> Result<()> {
+pub fn test_sodium_crypto() -> Result<()> {
     //
     // Encryption
     //
 
     // Generate a random secret key.
     // NOTE: The secret key bytes can be accessed by calling `secret_key.as_bytes()`
-    let alice_secret_key = generate_secret_key(rng);
+    let alice_secret_key = generate_secret_key();
 
     // Get the public key for the secret key we just generated
     let alice_public_key_bytes = *alice_secret_key.public_key().as_bytes();
@@ -127,7 +105,7 @@ pub fn test_sodium_crypto(rng: &mut Rng) -> Result<()> {
 
     // Encrypt the message using the box
     let mut ciphertext = [0u8; 4096];
-    let ciphertext = encrypt(&alice_box, rng, plaintext, &mut ciphertext)?;
+    let ciphertext = encrypt(&alice_box, plaintext, &mut ciphertext)?;
 
     //
     // Decryption
@@ -163,9 +141,7 @@ mod tests {
 
     #[test]
     fn test_encrypt() -> Result<()> {
-        let mut rng = Rng {};
-
-        let alice_secret_key = generate_secret_key(&mut rng);
+        let alice_secret_key = generate_secret_key();
 
         // Obtain your recipient's public key.
         let bob_public_key = PublicKey::from([
@@ -179,7 +155,7 @@ mod tests {
         let alice_box = SalsaBox::new(&bob_public_key, &alice_secret_key);
 
         let mut dest = [0u8; 4096];
-        let ciphertext = encrypt(&alice_box, &mut rng, b"hello world", &mut dest)?;
+        let ciphertext = encrypt(&alice_box, b"hello world", &mut dest)?;
         assert_eq!(ciphertext.len(), 51);
 
         Ok(())
@@ -187,8 +163,7 @@ mod tests {
 
     #[test]
     fn run_test_sodium_crypto() -> Result<()> {
-        let mut rng = Rng {};
-        test_sodium_crypto(&mut rng)?;
+        test_sodium_crypto()?;
         Ok(())
     }
 }

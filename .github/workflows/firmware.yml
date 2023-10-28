@@ -14,14 +14,15 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: rustup component add rust-src
-    - run: rustup target add riscv32imc-unknown-none-elf
-    - run: RUSTC_BOOTSTRAP=1 cargo build --release
+    - run: cargo install ldproxy
+    - run: RUSTC_BOOTSTRAP=1 cargo build --release --target=riscv32imc-esp-espidf
       working-directory: firmware/
 
   tests:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
+    - run: rm firmware/build.rs
     - run: cargo test -p d3xs-firmware
 
   clippy:
@@ -29,6 +30,5 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: rustup component add rust-src
-    - run: rustup target add riscv32imc-unknown-none-elf
-    - run: RUSTC_BOOTSTRAP=1 cargo clippy
+    - run: RUSTC_BOOTSTRAP=1 cargo clippy --target=riscv32imc-esp-espidf
       working-directory: firmware/

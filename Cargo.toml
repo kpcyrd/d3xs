@@ -9,12 +9,11 @@ edition = "2021"
 members = ["firmware"]
 
 # related to firmware, but needs to be specified at workspace root
-[profile.dev.package.esp-wifi]
-opt-level = 3
-[profile.dev]
-lto = "off"
 [profile.release]
-lto = "off"
+opt-level = "s"
+[profile.dev]
+debug = true
+opt-level = "z"
 
 [dependencies]
 anyhow = "1.0.72"
