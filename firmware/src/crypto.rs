@@ -1,8 +1,9 @@
 use crate::errors::*;
-use crypto_box::{aead::AeadInPlace, Nonce, PublicKey, SalsaBox, SecretKey, Tag};
+use crypto_box::{aead::AeadInPlace, Nonce, Tag};
+pub use crypto_box::{PublicKey, SalsaBox, SecretKey};
 
-const CRYPTO_TAG_SIZE: usize = 16;
-const CRYPTO_NONCE_SIZE: usize = 24;
+pub const CRYPTO_TAG_SIZE: usize = 16;
+pub const CRYPTO_NONCE_SIZE: usize = 24;
 
 #[cfg(target_os = "espidf")]
 pub fn getrandom(buf: &mut [u8]) {
@@ -16,7 +17,7 @@ pub fn getrandom(buf: &mut [u8]) {
     getrandom::getrandom(buf).unwrap();
 }
 
-fn encrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [u8]> {
+pub fn encrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [u8]> {
     let buffer_size = dest.len();
     if buffer_size < src.len() + CRYPTO_NONCE_SIZE + CRYPTO_TAG_SIZE {
         return Err(Error::BufferLimit);
@@ -44,7 +45,7 @@ fn encrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [
     Ok(&dest[..length])
 }
 
-fn decrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [u8]> {
+pub fn decrypt<'a>(salsa: &SalsaBox, src: &[u8], dest: &'a mut [u8]) -> Result<&'a [u8]> {
     if src.len() < CRYPTO_NONCE_SIZE + CRYPTO_TAG_SIZE {
         return Err(Error::BufferLimit);
     }

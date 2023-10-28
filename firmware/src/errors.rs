@@ -6,5 +6,7 @@ pub enum Error {
     Crypto(#[from] crypto_box::aead::Error),
     #[error("buffer size exceeded")]
     BufferLimit,
+    #[error("auth decrypt failed")]
+    AuthError,
 }
 pub type Result<T> = core::result::Result<T, Error>;
