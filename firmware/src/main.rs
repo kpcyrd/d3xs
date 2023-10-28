@@ -3,7 +3,17 @@
 use d3xs_firmware::crypto;
 use std::str;
 // use d3xs_firmware::errors::*;
-use esp32_nimble::{uuid128, BLEDevice, NimbleProperties};
+use esp32_nimble::utilities::BleUuid;
+use esp32_nimble::{BLEDevice, NimbleProperties};
+
+const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
+const CHAR_UUID: BleUuid = BleUuid::Uuid16(0xaaaa);
+const BLE_NAME: Option<&str> = option_env!("BLE_NAME");
+
+#[inline(always)]
+fn ble_name() -> &'static str {
+    BLE_NAME.unwrap_or("esp32c3-d3xs")
+}
 
 fn main() -> ! {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -39,13 +49,12 @@ fn main() -> ! {
     server.on_disconnect(|_desc, reason| {
         println!("[~] client disconnected ({:X})", reason);
     });
-    let service = server.create_service(uuid128!("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+    let service = server.create_service(SERVICE_UUID);
 
     // A writable characteristic
-    let characteristic = service.lock().create_characteristic(
-        uuid128!("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-        NimbleProperties::READ | NimbleProperties::WRITE,
-    );
+    let characteristic = service
+        .lock()
+        .create_characteristic(CHAR_UUID, NimbleProperties::READ | NimbleProperties::WRITE);
     characteristic
         .lock()
         .on_read(move |attr, _| {
@@ -64,7 +73,7 @@ fn main() -> ! {
         });
 
     let ble_advertising = ble_device.get_advertising();
-    ble_advertising.name("ESP32-GATT-Server");
+    ble_advertising.name(ble_name());
 
     println!("[~] starting ble server");
     ble_advertising.start().unwrap();
