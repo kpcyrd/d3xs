@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
-    - run: rm firmware/build.rs
     - run: cargo test -p d3xs-firmware
 
   clippy:
