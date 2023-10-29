@@ -4,13 +4,14 @@ use d3xs_firmware::chall::Challenge;
 use d3xs_firmware::crypto;
 use std::str;
 // use d3xs_firmware::errors::*;
-use esp32_nimble::utilities::{mutex::Mutex, BleUuid};
+use esp32_nimble::utilities::{mutex::Condvar, mutex::Mutex, BleUuid};
 use esp32_nimble::{BLEDevice, NimbleProperties};
 use esp_idf_svc::hal::gpio::PinDriver;
 use esp_idf_svc::hal::prelude::*;
 use smart_leds::hsv::RGB;
 use smart_leds::SmartLedsWrite;
 use std::sync::Arc;
+use std::time::Duration;
 use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 
 const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
@@ -40,8 +41,13 @@ fn self_secret_key() -> crypto::SecretKey {
 
 const LED_RED: RGB<u8> = RGB::new(16, 0, 0);
 const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
-const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
+// const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
 const LED_OFF: RGB<u8> = RGB::new(0, 0, 0);
+
+pub enum MainAction {
+    LedSuccess,
+    LedFail,
+}
 
 fn main() -> ! {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -60,6 +66,7 @@ fn main() -> ! {
     let peripherals = Peripherals::take().unwrap();
     let mut led = PinDriver::output(peripherals.pins.gpio4).unwrap();
     let mut ws2812 = Ws2812Esp32Rmt::new(0, 8).unwrap();
+    ws2812.write([LED_OFF].into_iter()).unwrap();
 
     println!("Testing encryption...");
     if crypto::test_sodium_crypto().is_ok() {
@@ -68,6 +75,9 @@ fn main() -> ! {
     println!("All clear ✅");
 
     let latest_nonce: Arc<Mutex<Option<Challenge>>> = Arc::new(Mutex::new(None));
+    let main_action: Arc<Mutex<Option<MainAction>>> = Arc::new(Mutex::new(None));
+    let notify: Arc<Condvar> = Arc::new(Condvar::new());
+    let notify_mutex = Mutex::new(());
 
     let ble_device = BLEDevice::take();
     let server = ble_device.get_server();
@@ -93,6 +103,8 @@ fn main() -> ! {
 
     let latest_nonce_read = latest_nonce.clone();
     let latest_nonce_write = latest_nonce.clone();
+    let main_action_write = main_action.clone();
+    let notify_write = notify.clone();
     let salsa_write = salsa.clone();
 
     characteristic
@@ -109,6 +121,18 @@ fn main() -> ! {
         .on_write(move |args| {
             let s = str::from_utf8(args.recv_data);
             println!("[~] wrote to writable characteristic: {:?}", s);
+
+            if args.recv_data.len() == 1 {
+                let mut guard = main_action_write.lock();
+                *guard = Some(MainAction::LedSuccess);
+                notify_write.notify_all();
+            }
+
+            if args.recv_data.len() == 2 {
+                let mut guard = main_action_write.lock();
+                *guard = Some(MainAction::LedFail);
+                notify_write.notify_all();
+            }
 
             if let Some(chall) = &*latest_nonce_write.lock() {
                 if chall.verify(&salsa_write, &args.recv_data).is_ok() {
@@ -134,20 +158,29 @@ fn main() -> ! {
             *latest_nonce.lock() = Some(chall);
         }
 
-        // println!("[~] blink");
+        if let Some(action) = main_action.lock().take() {
+            match action {
+                MainAction::LedSuccess => {
+                    led.set_high().unwrap();
+                    for _ in 0..10 {
+                        ws2812.write([LED_GREEN].into_iter()).unwrap();
+                        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+                        ws2812.write([LED_OFF].into_iter()).unwrap();
+                        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+                    }
+                    led.set_low().unwrap();
+                }
+                MainAction::LedFail => {
+                    for _ in 0..2 {
+                        ws2812.write([LED_RED].into_iter()).unwrap();
+                        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+                        ws2812.write([LED_OFF].into_iter()).unwrap();
+                        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+                    }
+                }
+            }
+        }
 
-        led.set_high().unwrap();
-        ws2812.write([LED_GREEN].into_iter()).unwrap();
-        esp_idf_hal::delay::FreeRtos::delay_ms(250);
-        ws2812.write([LED_RED].into_iter()).unwrap();
-        esp_idf_hal::delay::FreeRtos::delay_ms(250);
-        ws2812.write([LED_YELLOW].into_iter()).unwrap();
-        esp_idf_hal::delay::FreeRtos::delay_ms(250);
-
-        led.set_low().unwrap();
-        ws2812.write([LED_OFF].into_iter()).unwrap();
-        esp_idf_hal::delay::FreeRtos::delay_ms(250);
-
-        // esp_idf_hal::delay::FreeRtos::delay_ms(1000);
+        notify.wait_timeout(notify_mutex.lock(), Duration::from_secs(5));
     }
 }
