@@ -13,6 +13,8 @@ thiserror-no-std = "2.0.2"
 esp-idf-hal = "0.42"
 esp-idf-svc = { version = "0.47.1", default-features = false, features = ["alloc", "binstart", "critical-section", "embassy-sync", "embassy-time-driver", "native", "std"] }
 esp32-nimble = { git = "https://github.com/taks/esp32-nimble" }
+smart-leds = "0.3.0"
+ws2812-esp32-rmt-driver = "0.6.0"
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 getrandom = "0.2.10"

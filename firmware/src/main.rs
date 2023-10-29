@@ -6,7 +6,12 @@ use std::str;
 // use d3xs_firmware::errors::*;
 use esp32_nimble::utilities::{mutex::Mutex, BleUuid};
 use esp32_nimble::{BLEDevice, NimbleProperties};
+use esp_idf_svc::hal::gpio::PinDriver;
+use esp_idf_svc::hal::prelude::*;
+use smart_leds::hsv::RGB;
+use smart_leds::SmartLedsWrite;
 use std::sync::Arc;
+use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 
 const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
 const CHAR_UUID: BleUuid = BleUuid::Uuid16(0xaaaa);
@@ -33,6 +38,11 @@ fn self_secret_key() -> crypto::SecretKey {
     ])
 }
 
+const LED_RED: RGB<u8> = RGB::new(16, 0, 0);
+const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
+const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
+const LED_OFF: RGB<u8> = RGB::new(0, 0, 0);
+
 fn main() -> ! {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -46,6 +56,10 @@ fn main() -> ! {
         &ctrl_public_key(),
         &self_secret_key(),
     ));
+
+    let peripherals = Peripherals::take().unwrap();
+    let mut led = PinDriver::output(peripherals.pins.gpio4).unwrap();
+    let mut ws2812 = Ws2812Esp32Rmt::new(0, 8).unwrap();
 
     println!("Testing encryption...");
     if crypto::test_sodium_crypto().is_ok() {
@@ -120,6 +134,20 @@ fn main() -> ! {
             *latest_nonce.lock() = Some(chall);
         }
 
-        esp_idf_hal::delay::FreeRtos::delay_ms(5000);
+        // println!("[~] blink");
+
+        led.set_high().unwrap();
+        ws2812.write([LED_GREEN].into_iter()).unwrap();
+        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+        ws2812.write([LED_RED].into_iter()).unwrap();
+        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+        ws2812.write([LED_YELLOW].into_iter()).unwrap();
+        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+
+        led.set_low().unwrap();
+        ws2812.write([LED_OFF].into_iter()).unwrap();
+        esp_idf_hal::delay::FreeRtos::delay_ms(250);
+
+        // esp_idf_hal::delay::FreeRtos::delay_ms(1000);
     }
 }
