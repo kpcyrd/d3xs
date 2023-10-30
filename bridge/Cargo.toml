@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.75"
 btleplug = "0.11.1"
 clap = { version = "4.4.7", features = ["derive", "env"] }
+d3xs-protocol = { version = "0.1.0", path = "../protocol" }
 env_logger = "0.10.0"
 futures-util = "0.3.29"
 log = "0.4.20"

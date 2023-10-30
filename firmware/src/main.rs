@@ -1,15 +1,18 @@
 #![cfg(target_os = "espidf")]
 
+use d3xs_firmware::chall;
 use d3xs_firmware::chall::Challenge;
-use d3xs_firmware::crypto;
-use std::str;
-// use d3xs_firmware::errors::*;
+use d3xs_firmware::errors::*;
+use d3xs_protocol::crypto;
+use data_encoding::BASE64;
 use esp32_nimble::utilities::{mutex::Condvar, mutex::Mutex, BleUuid};
 use esp32_nimble::{BLEDevice, NimbleProperties};
 use esp_idf_svc::hal::gpio::PinDriver;
 use esp_idf_svc::hal::prelude::*;
+use esp_idf_svc::sys;
 use smart_leds::hsv::RGB;
 use smart_leds::SmartLedsWrite;
+use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
@@ -17,6 +20,16 @@ use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
 const CHAR_UUID: BleUuid = BleUuid::Uuid16(0xaaaa);
 const BLE_NAME: Option<&str> = option_env!("BLE_NAME");
+
+const LED_RED: RGB<u8> = RGB::new(16, 0, 0);
+const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
+// const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
+const LED_OFF: RGB<u8> = RGB::new(0, 0, 0);
+
+pub enum MainAction {
+    LedSuccess,
+    LedFail,
+}
 
 #[inline(always)]
 fn ble_name() -> &'static str {
@@ -39,14 +52,22 @@ fn self_secret_key() -> crypto::SecretKey {
     ])
 }
 
-const LED_RED: RGB<u8> = RGB::new(16, 0, 0);
-const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
-// const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
-const LED_OFF: RGB<u8> = RGB::new(0, 0, 0);
+fn detect_ble_mac() -> Result<String> {
+    let mut mac = [0u8; 6];
+    let ret =
+        unsafe { sys::esp_read_mac(mac.as_mut_ptr() as *mut _, sys::esp_mac_type_t_ESP_MAC_BT) };
+    if ret != sys::ESP_OK {
+        return Err(Error::EspError("esp_read_mac"));
+    }
 
-pub enum MainAction {
-    LedSuccess,
-    LedFail,
+    let mut s = String::new();
+    for b in mac {
+        if !s.is_empty() {
+            s.push(':');
+        }
+        write!(s, "{b:02x}").unwrap();
+    }
+    Ok(s)
 }
 
 fn main() -> ! {
@@ -57,22 +78,23 @@ fn main() -> ! {
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    println!("[~] hello, world!");
-    let salsa = Arc::new(crypto::SalsaBox::new(
-        &ctrl_public_key(),
-        &self_secret_key(),
-    ));
+    println!("[✨] hello, world!");
+    let self_secret_key = self_secret_key();
+    let salsa = Arc::new(crypto::SalsaBox::new(&ctrl_public_key(), &self_secret_key));
+
+    let self_public_key = self_secret_key.public_key();
+    println!(
+        "[🔑] public key: {}",
+        BASE64.encode(self_public_key.as_bytes())
+    );
+    if let Ok(mac) = detect_ble_mac() {
+        println!("[🔑] ble mac: {}", mac);
+    }
 
     let peripherals = Peripherals::take().unwrap();
     let mut led = PinDriver::output(peripherals.pins.gpio4).unwrap();
     let mut ws2812 = Ws2812Esp32Rmt::new(0, 8).unwrap();
     ws2812.write([LED_OFF].into_iter()).unwrap();
-
-    println!("Testing encryption...");
-    if crypto::test_sodium_crypto().is_ok() {
-        println!("Tests have passed ✨");
-    }
-    println!("All clear ✅");
 
     let latest_nonce: Arc<Mutex<Option<Challenge>>> = Arc::new(Mutex::new(None));
     let main_action: Arc<Mutex<Option<MainAction>>> = Arc::new(Mutex::new(None));
@@ -82,7 +104,7 @@ fn main() -> ! {
     let ble_device = BLEDevice::take();
     let server = ble_device.get_server();
     server.on_connect(|server, desc| {
-        println!("[~] client connected");
+        println!("[🤝] client connected");
 
         server
             .update_conn_params(desc.conn_handle, 24, 48, 0, 60)
@@ -92,7 +114,7 @@ fn main() -> ! {
         ble_device.get_advertising().start().unwrap();
     });
     server.on_disconnect(|_desc, reason| {
-        println!("[~] client disconnected ({:X})", reason);
+        println!("[✌️] client disconnected ({:X})", reason);
     });
     let service = server.create_service(SERVICE_UUID);
 
@@ -110,7 +132,7 @@ fn main() -> ! {
     characteristic
         .lock()
         .on_read(move |attr, _| {
-            println!("[~] sending nonce");
+            println!("[🎲] sending nonce");
 
             if let Some(chall) = &*latest_nonce_read.lock() {
                 attr.set_value(&chall.encrypted);
@@ -119,42 +141,37 @@ fn main() -> ! {
             }
         })
         .on_write(move |args| {
-            let s = str::from_utf8(args.recv_data);
-            println!("[~] wrote to writable characteristic: {:?}", s);
+            let buf = args.recv_data;
+            println!("[🔍] wrote to writable characteristic: {buf:?}");
 
-            if args.recv_data.len() == 1 {
-                let mut guard = main_action_write.lock();
-                *guard = Some(MainAction::LedSuccess);
-                notify_write.notify_all();
-            }
-
-            if args.recv_data.len() == 2 {
-                let mut guard = main_action_write.lock();
-                *guard = Some(MainAction::LedFail);
-                notify_write.notify_all();
-            }
-
-            if let Some(chall) = &*latest_nonce_write.lock() {
-                if chall.verify(&salsa_write, &args.recv_data).is_ok() {
-                    // success
-                    println!("[~] success");
-                    args.reject_with_error_code(0);
-                } else {
-                    args.reject();
-                }
+            let solved = if let Some(chall) = &*latest_nonce_write.lock() {
+                chall.verify(&salsa_write, &buf).is_ok()
             } else {
-                args.reject();
-            }
+                false
+            };
+
+            let (action, ret) = if solved {
+                println!("[✅] success");
+                (MainAction::LedSuccess, 0)
+            } else {
+                (MainAction::LedFail, 1)
+            };
+
+            let mut guard = main_action_write.lock();
+            *guard = Some(action);
+            notify_write.notify_all();
+
+            args.reject_with_error_code(ret);
         });
 
     let ble_advertising = ble_device.get_advertising();
     ble_advertising.name(ble_name());
 
-    println!("[~] starting ble server");
+    println!("[📻] starting ble server");
     ble_advertising.start().unwrap();
 
     loop {
-        if let Ok(chall) = Challenge::generate(&salsa) {
+        if let Ok(chall) = Challenge::generate::<chall::Random>(&salsa) {
             *latest_nonce.lock() = Some(chall);
         }
 

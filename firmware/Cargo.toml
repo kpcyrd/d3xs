@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
+d3xs-protocol = { version = "0.1.0", path = "../protocol" }
+data-encoding = "2.4.0"
 thiserror-no-std = "2.0.2"
 
 [target.'cfg(target_os = "espidf")'.dependencies]

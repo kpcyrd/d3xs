@@ -751,6 +751,7 @@ dependencies = [
  "anyhow",
  "btleplug",
  "clap",
+ "d3xs-protocol",
  "env_logger",
  "futures-util",
  "log",
@@ -763,6 +764,8 @@ name = "d3xs-firmware"
 version = "0.1.0"
 dependencies = [
  "crypto_box",
+ "d3xs-protocol",
+ "data-encoding",
  "embuild",
  "esp-idf-hal",
  "esp-idf-svc",
@@ -771,6 +774,15 @@ dependencies = [
  "smart-leds",
  "thiserror-no-std",
  "ws2812-esp32-rmt-driver",
+]
+
+[[package]]
+name = "d3xs-protocol"
+version = "0.1.0"
+dependencies = [
+ "crypto_box",
+ "getrandom",
+ "thiserror-no-std",
 ]
 
 [[package]]

@@ -1,0 +1,13 @@
+[package]
+name = "d3xs-protocol"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
+thiserror-no-std = "2.0.2"
+
+[target.'cfg(not(target_os = "espidf"))'.dependencies]
+getrandom = "0.2.10"

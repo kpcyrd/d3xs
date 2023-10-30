@@ -34,13 +34,13 @@ async fn try_solve_char(
     let chall = peripheral.read(&characteristic).await?;
     println!("chall={chall:?}");
 
+    if chall.is_empty() {
+        bail!("Challenge can't be empty");
+    }
+
     info!("Sending solution");
     peripheral
-        .write(
-            &characteristic,
-            open.public_key.as_bytes(),
-            WriteType::WithoutResponse,
-        )
+        .write(&characteristic, &chall, WriteType::WithoutResponse)
         .await?;
 
     Ok(())
