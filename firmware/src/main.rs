@@ -20,6 +20,7 @@ use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
 const CHAR_UUID: BleUuid = BleUuid::Uuid16(0xaaaa);
 const BLE_NAME: Option<&str> = option_env!("BLE_NAME");
+const BUZZ_SECONDS: usize = 8;
 
 const LED_RED: RGB<u8> = RGB::new(16, 0, 0);
 const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
@@ -181,7 +182,7 @@ fn main() -> ! {
             match action {
                 MainAction::LedSuccess => {
                     switch.set_low().unwrap();
-                    for _ in 0..10 {
+                    for _ in 0..BUZZ_SECONDS {
                         ws2812.write([LED_GREEN].into_iter()).unwrap();
                         esp_idf_hal::delay::FreeRtos::delay_ms(250);
                         ws2812.write([LED_OFF].into_iter()).unwrap();
