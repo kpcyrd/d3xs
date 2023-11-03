@@ -11,6 +11,7 @@ use btleplug::platform::{Adapter, Manager, Peripheral};
 use clap::Parser;
 use env_logger::Env;
 use futures_util::StreamExt;
+use tokio::time;
 use uuid::Uuid;
 
 const SERVICE_UUID: Uuid = uuid_from_u16(0xFFFF);
@@ -26,7 +27,7 @@ async fn find_by_mac(central: &Adapter, mac: &BDAddr) -> Result<Option<Periphera
 }
 
 async fn try_solve_char(
-    open: &args::Open,
+    _open: &args::Open,
     peripheral: Peripheral,
     characteristic: Characteristic,
 ) -> Result<()> {
@@ -67,6 +68,32 @@ async fn try_solve(open: &args::Open, peripheral: Peripheral) -> Result<()> {
     try_solve_char(open, peripheral, characteristic).await
 }
 
+async fn try_open(central: &Adapter, open: &args::Open, mac: &BDAddr) -> Result<()> {
+    let mut events = central.events().await?;
+    central.start_scan(ScanFilter::default()).await?;
+
+    while let Some(event) = events.next().await {
+        trace!("Bluetooth event: {event:?}");
+        if let CentralEvent::DeviceDiscovered(_) = event {
+            if let Some(peripheral) = find_by_mac(central, mac)
+                .await
+                .context("Failed to enumerate peripherals")?
+            {
+                match try_solve(open, peripheral).await {
+                    Ok(_) => {
+                        return Ok(());
+                    }
+                    Err(err) => {
+                        error!("Failed to solve challenge: {err:#}");
+                    }
+                }
+            }
+        }
+    }
+
+    bail!("Failed to open")
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -88,26 +115,16 @@ async fn main() -> Result<()> {
                 .next()
                 .context("No bluetooth adapters found")?;
 
-            let mut events = central.events().await?;
-            central.start_scan(ScanFilter::default()).await?;
+            let future = try_open(&central, &open, &mac);
 
-            while let Some(event) = events.next().await {
-                trace!("Bluetooth event: {event:?}");
-                if let CentralEvent::DeviceDiscovered(_) = event {
-                    if let Some(peripheral) = find_by_mac(&central, &mac)
-                        .await
-                        .context("Failed to enumerate peripherals")?
-                    {
-                        match try_solve(&open, peripheral).await {
-                            Ok(_) => {
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                error!("Failed to solve challenge: {err:#}");
-                            }
-                        }
-                    }
-                }
+            if open.timeout == 0 {
+                future.await?;
+            } else {
+                let timeout = time::Duration::from_secs(open.timeout);
+                time::timeout(timeout, future)
+                    .await
+                    .context("Operation has timed out")?
+                    .context("Operation has failed")?;
             }
         }
     }

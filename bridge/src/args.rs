@@ -16,4 +16,7 @@ pub enum SubCommand {
 pub struct Open {
     pub mac: String,
     pub public_key: String,
+    /// How many seconds until the operation times out (0 for no limit)
+    #[arg(short, long, default_value = "15")]
+    pub timeout: u64,
 }
