@@ -94,17 +94,17 @@ async fn main() -> Result<()> {
             while let Some(event) = events.next().await {
                 trace!("Bluetooth event: {event:?}");
                 if let CentralEvent::DeviceDiscovered(_) = event {
-                    let peripheral = find_by_mac(&central, &mac)
+                    if let Some(peripheral) = find_by_mac(&central, &mac)
                         .await
                         .context("Failed to enumerate peripherals")?
-                        .context("Failed to find peripheral by mac")?;
-
-                    match try_solve(&open, peripheral).await {
-                        Ok(_) => {
-                            return Ok(());
-                        }
-                        Err(err) => {
-                            error!("Failed to solve challenge: {err:#}");
+                    {
+                        match try_solve(&open, peripheral).await {
+                            Ok(_) => {
+                                return Ok(());
+                            }
+                            Err(err) => {
+                                error!("Failed to solve challenge: {err:#}");
+                            }
                         }
                     }
                 }
