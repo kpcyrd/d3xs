@@ -94,7 +94,7 @@ fn main() -> ! {
 
     let peripherals = Peripherals::take().unwrap();
     let mut switch = PinDriver::output(peripherals.pins.gpio4).unwrap();
-    switch.set_high().unwrap();
+    switch.set_low().unwrap();
 
     let mut ws2812 = Ws2812Esp32Rmt::new(0, 8).unwrap();
     ws2812.write([LED_OFF].into_iter()).unwrap();
@@ -181,14 +181,14 @@ fn main() -> ! {
         if let Some(action) = main_action.lock().take() {
             match action {
                 MainAction::LedSuccess => {
-                    switch.set_low().unwrap();
+                    switch.set_high().unwrap();
                     for _ in 0..BUZZ_SECONDS {
                         ws2812.write([LED_GREEN].into_iter()).unwrap();
                         esp_idf_hal::delay::FreeRtos::delay_ms(250);
                         ws2812.write([LED_OFF].into_iter()).unwrap();
                         esp_idf_hal::delay::FreeRtos::delay_ms(250);
                     }
-                    switch.set_high().unwrap();
+                    switch.set_low().unwrap();
                 }
                 MainAction::LedFail => {
                     for _ in 0..2 {
