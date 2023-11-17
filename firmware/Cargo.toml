@@ -14,7 +14,7 @@ thiserror-no-std = "2.0.2"
 [target.'cfg(target_os = "espidf")'.dependencies]
 esp-idf-hal = "0.42"
 esp-idf-svc = { version = "0.47.1", default-features = false, features = ["alloc", "binstart", "critical-section", "embassy-sync", "embassy-time-driver", "native", "std"] }
-esp32-nimble = { git = "https://github.com/taks/esp32-nimble" }
+esp32-nimble = { version = "0.3.1", default-features = false }
 smart-leds = "0.3.0"
 ws2812-esp32-rmt-driver = "0.6.0"
 
