@@ -38,6 +38,26 @@ async fn show_style() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
     Ok(Box::new(reply))
 }
 
+async fn show_wasm_bindgen() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let mut reply = Response::builder();
+    reply = reply.header("content-type", "text/javascript");
+    if !assets::DEBUG_MODE {
+        reply = reply.header("cache-control", "immutable");
+    }
+    let reply = reply.body(assets::WASM_BINDGEN).unwrap();
+    Ok(Box::new(reply))
+}
+
+async fn show_wasm() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let mut reply = Response::builder();
+    reply = reply.header("content-type", "application/wasm");
+    if !assets::DEBUG_MODE {
+        reply = reply.header("cache-control", "immutable");
+    }
+    let reply = reply.body(assets::WASM).unwrap();
+    Ok(Box::new(reply))
+}
+
 async fn show_page(
     config: Arc<Config>,
     hb: Arc<Handlebars<'_>>,
@@ -51,6 +71,8 @@ async fn show_page(
         &json!({
             "script_name": assets::SCRIPT_JS_NAME,
             "style_name": assets::STYLE_CSS_NAME,
+            "wasm_bindgen_name": assets::WASM_BINDGEN_NAME,
+            "wasm_name": assets::WASM_NAME,
         }),
     ) {
         Ok(html) => html,
@@ -163,6 +185,16 @@ async fn main() -> Result<()> {
         .and(warp::path(assets::STYLE_CSS_NAME))
         .and(warp::path::end())
         .and_then(show_style);
+    let show_wasm_bindgen = warp::get()
+        .and(warp::path("assets"))
+        .and(warp::path(assets::WASM_BINDGEN_NAME))
+        .and(warp::path::end())
+        .and_then(show_wasm_bindgen);
+    let show_wasm = warp::get()
+        .and(warp::path("assets"))
+        .and(warp::path(assets::WASM_NAME))
+        .and(warp::path::end())
+        .and_then(show_wasm);
     let websocket = warp::get()
         .and(config)
         .and(warp::path::param())
@@ -170,7 +202,14 @@ async fn main() -> Result<()> {
         .and(warp::ws())
         .and_then(websocket);
 
-    let routes = warp::any().and(show_script.or(show_style).or(websocket).or(show_page));
+    let routes = warp::any().and(
+        show_script
+            .or(show_style)
+            .or(show_wasm)
+            .or(show_wasm_bindgen)
+            .or(websocket)
+            .or(show_page),
+    );
 
     warp::serve(routes).run(args.bind).await;
 

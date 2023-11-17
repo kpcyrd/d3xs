@@ -1,5 +1,6 @@
 let ws = null;
-(function() {
+
+export default function(wasm) {
     let xTouchDown = null;
     const container = document.getElementById('container');
 
@@ -47,6 +48,7 @@ let ws = null;
                 if (ws) {
                     console.log('send cmd to websocket:', key);
                     ws.send(key);
+                    wasm.greet();
                 }
             }
 
@@ -101,4 +103,4 @@ let ws = null;
     }
 
     connect();
-})();
+}

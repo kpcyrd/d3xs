@@ -1,2 +1,4 @@
 /target
 /.embuild/
+/wasm-target/
+/firmware-target/
