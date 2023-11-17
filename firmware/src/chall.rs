@@ -15,8 +15,8 @@ pub struct Random;
 #[cfg(target_os = "espidf")]
 impl crypto::Rng for Random {
     fn getrandom(buf: &mut [u8]) {
-        for i in 0..buf.len() {
-            buf[i] = unsafe { esp_idf_svc::sys::random() } as u8;
+        for byte in buf {
+            *byte = unsafe { esp_idf_svc::sys::random() } as u8;
         }
     }
 }

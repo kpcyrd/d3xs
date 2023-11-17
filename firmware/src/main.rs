@@ -148,7 +148,7 @@ fn main() -> ! {
             println!("[🔍] wrote to writable characteristic: {buf:?}");
 
             let solved = if let Some(chall) = &*latest_nonce_write.lock() {
-                chall.verify(&salsa_write, &buf).is_ok()
+                chall.verify(&salsa_write, buf).is_ok()
             } else {
                 false
             };
