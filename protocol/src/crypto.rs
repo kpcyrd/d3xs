@@ -4,6 +4,7 @@ pub use crypto_box::{PublicKey, SalsaBox, SecretKey};
 
 pub const CRYPTO_TAG_SIZE: usize = 16;
 pub const CRYPTO_NONCE_SIZE: usize = 24;
+pub const CRYPTO_SECRET_KEY_SIZE: usize = 32;
 
 pub trait Rng {
     fn getrandom(buf: &mut [u8]);

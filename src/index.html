@@ -7,12 +7,13 @@
             import init from '/assets/{{wasm_bindgen_name}}';
             import main from '/assets/{{script_name}}';
             document.getElementById('container').textContent="Loading wasm...";
-            init('/assets/{{wasm_name}}').then(main);
+            init('/assets/{{wasm_name}}').then(main());
         </script>
     </head>
     <body>
         <div id="container">
             Connecting...
         </div>
+        <div id="status"></div>
     </body>
 </html>

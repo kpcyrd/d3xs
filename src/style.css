@@ -37,3 +37,7 @@ body {
     justify-content: center;
     align-items: center;
 }
+
+#status {
+    align-self: flex-end;
+}

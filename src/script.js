@@ -1,8 +1,10 @@
+let wasm = null;
 let ws = null;
 
-export default function(wasm) {
+export default function() {
     let xTouchDown = null;
     const container = document.getElementById('container');
+    const status = document.getElementById('status');
 
     function createSlider(key, label) {
         const slider = document.createElement('div');
@@ -103,4 +105,24 @@ export default function(wasm) {
     }
 
     connect();
+
+    status.textContent = 'crypto: STARTING';
+    return function(WASM) {
+        wasm = WASM;
+        window['w'] = WASM;
+        wasm.greet2('hai');
+
+        function validate_key() {
+            const key = location.hash.substr(1);
+            console.log("key from url:", key);
+            if (wasm.validate_key(key)) {
+                status.textContent = 'crypto: OK';
+            } else {
+                status.textContent = 'crypto: MISSING KEY';
+            }
+        }
+
+        window.addEventListener('hashchange', validate_key);
+        validate_key();
+    };
 }

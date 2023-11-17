@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
+data-encoding = "2.4.0"
 thiserror-no-std = "2.0.2"
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]

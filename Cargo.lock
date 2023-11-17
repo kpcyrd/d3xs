@@ -787,6 +787,7 @@ name = "d3xs-protocol"
 version = "0.1.0"
 dependencies = [
  "crypto_box",
+ "data-encoding",
  "getrandom",
  "thiserror-no-std",
  "wasm-bindgen",
