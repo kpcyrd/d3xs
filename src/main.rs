@@ -12,50 +12,85 @@ use futures_util::{FutureExt, SinkExt, StreamExt};
 use handlebars::Handlebars;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::borrow::Cow;
 use std::collections::HashSet;
+use std::env;
 use std::sync::Arc;
+use tokio::fs;
 use warp::ws::Message;
 use warp::ws::WebSocket;
 use warp::{http::Response, http::StatusCode, Filter};
 
-async fn show_script() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+async fn resolve_asset<'a>(
+    default: &'static [u8],
+    content_type: &str,
+    env_var: &str,
+) -> Result<Box<dyn warp::Reply + 'static>> {
     let mut reply = Response::builder();
-    reply = reply.header("content-type", "text/javascript");
-    if !assets::DEBUG_MODE {
-        reply = reply.header("cache-control", "immutable");
-    }
-    let reply = reply.body(assets::SCRIPT_JS).unwrap();
+    reply = reply.header("content-type", content_type);
+    let content = if let Ok(path) = env::var(env_var) {
+        match fs::read(path).await {
+            Ok(content) => Cow::Owned(content),
+            Err(err) => {
+                error!("Failed to read file: {err:#}");
+                return Err(err.into());
+            }
+        }
+    } else {
+        if !assets::DEBUG_MODE {
+            reply = reply.header("cache-control", "immutable");
+        }
+        Cow::Borrowed(default)
+    };
+    let reply = reply.body(content).unwrap();
     Ok(Box::new(reply))
+}
+
+async fn show_script() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let Ok(reply) = resolve_asset(
+        assets::SCRIPT_JS.as_bytes(),
+        "text/javascript",
+        "D3XS_PATCH_JS_FILE",
+    )
+    .await
+    else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
 }
 
 async fn show_style() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let mut reply = Response::builder();
-    reply = reply.header("content-type", "text/css");
-    if !assets::DEBUG_MODE {
-        reply = reply.header("cache-control", "immutable");
-    }
-    let reply = reply.body(assets::STYLE_CSS).unwrap();
-    Ok(Box::new(reply))
+    let Ok(reply) = resolve_asset(
+        assets::STYLE_CSS.as_bytes(),
+        "text/css",
+        "D3XS_PATCH_CSS_FILE",
+    )
+    .await
+    else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
 }
 
 async fn show_wasm_bindgen() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let mut reply = Response::builder();
-    reply = reply.header("content-type", "text/javascript");
-    if !assets::DEBUG_MODE {
-        reply = reply.header("cache-control", "immutable");
-    }
-    let reply = reply.body(assets::WASM_BINDGEN).unwrap();
-    Ok(Box::new(reply))
+    let Ok(reply) = resolve_asset(
+        assets::WASM_BINDGEN.as_bytes(),
+        "text/javascript",
+        "D3XS_PATCH_WASM_BINDGEN_FILE",
+    )
+    .await
+    else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
 }
 
 async fn show_wasm() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let mut reply = Response::builder();
-    reply = reply.header("content-type", "application/wasm");
-    if !assets::DEBUG_MODE {
-        reply = reply.header("cache-control", "immutable");
-    }
-    let reply = reply.body(assets::WASM).unwrap();
-    Ok(Box::new(reply))
+    let Ok(reply) = resolve_asset(assets::WASM, "application/wasm", "D3XS_PATCH_WASM_FILE").await
+    else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
 }
 
 async fn show_page(
@@ -69,10 +104,10 @@ async fn show_page(
     let html = match hb.render(
         "index.html",
         &json!({
-            "script_name": assets::SCRIPT_JS_NAME,
-            "style_name": assets::STYLE_CSS_NAME,
-            "wasm_bindgen_name": assets::WASM_BINDGEN_NAME,
-            "wasm_name": assets::WASM_NAME,
+            "script_name": assets::script_js_name(),
+            "style_name": assets::style_css_name(),
+            "wasm_bindgen_name": assets::wasm_bindgen_name(),
+            "wasm_name": assets::wasm_name(),
         }),
     ) {
         Ok(html) => html,
@@ -177,22 +212,22 @@ async fn main() -> Result<()> {
         .and_then(show_page);
     let show_script = warp::get()
         .and(warp::path("assets"))
-        .and(warp::path(assets::SCRIPT_JS_NAME))
+        .and(warp::path(assets::script_js_name()))
         .and(warp::path::end())
         .and_then(show_script);
     let show_style = warp::get()
         .and(warp::path("assets"))
-        .and(warp::path(assets::STYLE_CSS_NAME))
+        .and(warp::path(assets::style_css_name()))
         .and(warp::path::end())
         .and_then(show_style);
     let show_wasm_bindgen = warp::get()
         .and(warp::path("assets"))
-        .and(warp::path(assets::WASM_BINDGEN_NAME))
+        .and(warp::path(assets::wasm_bindgen_name()))
         .and(warp::path::end())
         .and_then(show_wasm_bindgen);
     let show_wasm = warp::get()
         .and(warp::path("assets"))
-        .and(warp::path(assets::WASM_NAME))
+        .and(warp::path(assets::wasm_name()))
         .and(warp::path::end())
         .and_then(show_wasm);
     let websocket = warp::get()
