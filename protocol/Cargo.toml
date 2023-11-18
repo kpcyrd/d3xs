@@ -24,4 +24,3 @@ getrandom = "0.2"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
-wee_alloc = "0.4"
