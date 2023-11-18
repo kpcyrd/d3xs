@@ -4,6 +4,7 @@ let ws = null;
 export default function() {
     let xTouchDown = null;
     const container = document.getElementById('container');
+    const crypto = document.getElementById('crypto');
     const status = document.getElementById('status');
 
     function createSlider(key, label) {
@@ -121,6 +122,12 @@ export default function() {
                 status.textContent = 'crypto: MISSING KEY';
             }
         }
+
+        status.addEventListener('click', function(event) {
+            event.preventDefault();
+            crypto.hidden = !crypto.hidden;
+            container.hidden = !container.hidden;
+        });
 
         window.addEventListener('hashchange', validate_key);
         validate_key();
