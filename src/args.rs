@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
-use std::path::PathBuf;
 
 #[derive(Debug, clap::Parser)]
 pub struct Args {
-    #[arg(short, long, env = "D3XS_CONFIG")]
-    pub config: PathBuf,
+    /// Shared secret to authenticate the bridge
+    pub uuid: String,
+    /// Bind to this address for incoming connections
     #[arg(short = 'B', long, env = "D3XS_BIND")]
     pub bind: SocketAddr,
     /// Increase logging output (can be used multiple times)

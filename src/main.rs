@@ -1,24 +1,21 @@
 pub mod args;
 pub mod assets;
-pub mod config;
 pub mod errors;
+pub mod ws;
 
 use crate::args::Args;
-use crate::config::Config;
 use crate::errors::*;
 use clap::Parser;
+use d3xs_protocol::ipc;
 use env_logger::Env;
-use futures_util::{FutureExt, SinkExt, StreamExt};
 use handlebars::Handlebars;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
 use tokio::fs;
-use warp::ws::Message;
-use warp::ws::WebSocket;
+use tokio::sync::broadcast;
+use tokio::sync::RwLock;
 use warp::{http::Response, http::StatusCode, Filter};
 
 async fn resolve_asset<'a>(
@@ -94,10 +91,12 @@ async fn show_wasm() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
 }
 
 async fn show_page(
-    config: Arc<Config>,
+    config: Arc<RwLock<ipc::Config>>,
     hb: Arc<Handlebars<'_>>,
     user: String,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let config = config.read().await;
+
     let Some(_config) = config.users.get(&user) else {
         return Ok(Box::new(StatusCode::NOT_FOUND));
     };
@@ -119,72 +118,6 @@ async fn show_page(
     Ok(Box::new(warp::reply::html(html)))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Door {
-    pub id: String,
-    pub label: String,
-}
-
-impl Door {
-    pub fn new(id: String, config: config::Door) -> Self {
-        Door {
-            id,
-            label: config.label,
-        }
-    }
-}
-
-async fn ws_connect(mut ws: WebSocket, config: Vec<Door>) -> Result<()> {
-    let json = serde_json::to_string(&config)?;
-    ws.send(Message::text(json)).await?;
-    let authorized = config.iter().map(|d| d.id.as_str()).collect::<HashSet<_>>();
-
-    while let Some(msg) = ws.next().await {
-        let msg = msg.context("Failed to read from websocket")?;
-        let Ok(msg) = msg.to_str() else { continue };
-        if !authorized.contains(msg) {
-            warn!("Attempt to access unauthorized resource: {msg:?}");
-            continue;
-        }
-
-        info!("msg={msg:?}");
-    }
-
-    Ok(())
-}
-
-async fn websocket(
-    config: Arc<Config>,
-    user: String,
-    ws: warp::ws::Ws,
-) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let mut doors = config.doors.clone();
-    let Some(config) = config.users.get(&user) else {
-        return Ok(Box::new(StatusCode::NOT_FOUND));
-    };
-    let config = config.clone();
-    debug!(
-        "Received client connection: user={:?} config={:?}",
-        user, config
-    );
-
-    let mut out = Vec::new();
-    for auth in config.authorize {
-        if let Some(door) = doors.remove(&auth) {
-            out.push(Door::new(auth, door));
-        }
-    }
-
-    let reply = ws.on_upgrade(move |websocket| {
-        ws_connect(websocket, out).map(|result| {
-            if let Err(err) = result {
-                info!("websocket error: {err:#}")
-            }
-        })
-    });
-    Ok(Box::new(reply))
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -195,8 +128,16 @@ async fn main() -> Result<()> {
     };
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
-    let config = Arc::new(Config::load_from_path(&args.config).await?);
+    let config = Arc::new(RwLock::new(ipc::Config::default()));
     let config = warp::any().map(move || config.clone());
+
+    let uuid = Arc::new(args.uuid);
+    let uuid = warp::any().map(move || uuid.clone());
+
+    let tx = {
+        let (tx, _rx) = broadcast::channel(16);
+        warp::any().map(move || tx.clone())
+    };
 
     let mut hb = Handlebars::new();
     hb.register_template_string("index.html", include_str!("index.html"))
@@ -230,19 +171,30 @@ async fn main() -> Result<()> {
         .and(warp::path(assets::wasm_name()))
         .and(warp::path::end())
         .and_then(show_wasm);
-    let websocket = warp::get()
-        .and(config)
+    let ws_user = warp::get()
+        .and(config.clone())
+        .and(tx.clone())
         .and(warp::path::param())
         .and(warp::path::end())
         .and(warp::ws())
-        .and_then(websocket);
+        .and_then(ws::user::websocket);
+    let ws_bridge = warp::get()
+        .and(uuid)
+        .and(config)
+        .and(tx)
+        .and(warp::path("bridge"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and(warp::ws())
+        .and_then(ws::bridge::websocket);
 
     let routes = warp::any().and(
         show_script
             .or(show_style)
             .or(show_wasm)
             .or(show_wasm_bindgen)
-            .or(websocket)
+            .or(ws_user)
+            .or(ws_bridge)
             .or(show_page),
     );
 

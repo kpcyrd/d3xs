@@ -49,9 +49,13 @@ export default function() {
         slider.addEventListener('touchend', function(_event) {
             if (execute) {
                 if (ws) {
-                    console.log('send cmd to websocket:', key);
-                    ws.send(key);
-                    wasm.greet();
+                    let msg = JSON.stringify({
+                        door: key,
+                        code: key,
+                    });
+                    console.log('send cmd to websocket:', msg);
+                    ws.send(msg);
+                    // wasm.greet();
                 }
             }
 
@@ -110,13 +114,9 @@ export default function() {
     status.textContent = 'crypto: STARTING';
     return function(WASM) {
         wasm = WASM;
-        window['w'] = WASM;
-        wasm.greet2('hai');
 
         function validate_key() {
-            const key = location.hash.substr(1);
-            console.log("key from url:", key);
-            if (wasm.validate_key(key)) {
+            if (wasm.validate_key()) {
                 status.textContent = 'crypto: OK';
             } else {
                 status.textContent = 'crypto: MISSING KEY';

@@ -14,6 +14,5 @@ FROM alpine:3.18
 RUN apk add libgcc
 COPY --from=0 /app/d3xs /usr/bin
 USER 1000
-ENV D3XS_CONFIG=/config.toml
 ENV D3XS_BIND=0.0.0.0:8080
 ENTRYPOINT ["d3xs"]

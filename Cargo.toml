@@ -18,6 +18,7 @@ opt-level = "z"
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.3.19", features = ["derive", "env"] }
+d3xs-protocol = { version = "0.1.0", path = "protocol", features = ["ipc"] }
 env_logger = "0.10.0"
 futures-util = "0.3.28"
 handlebars = "4.3.7"
