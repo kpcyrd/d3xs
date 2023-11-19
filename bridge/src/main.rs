@@ -78,7 +78,10 @@ async fn main() -> Result<()> {
                 println!("# public_key = {public_key:?}");
                 println!("secret_key = {secret_key:?}");
             } else if keygen.firmware {
-                println!("# {public_key}");
+                println!("# [doors.building]");
+                println!("# label = \"Building\"");
+                println!("# mac = \"ec:da:3b:ff:ff:ff\"");
+                println!("# public_key = {public_key:?}");
                 println!("D3XS_DOOR_KEY={secret_key:?}");
             } else {
                 let name = keygen.name.as_deref();
