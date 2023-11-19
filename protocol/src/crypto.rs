@@ -1,10 +1,12 @@
 use crate::errors::*;
 use crypto_box::{aead::AeadInPlace, Nonce, Tag};
 pub use crypto_box::{PublicKey, SalsaBox, SecretKey};
+use data_encoding::BASE64;
 
 pub const CRYPTO_TAG_SIZE: usize = 16;
 pub const CRYPTO_NONCE_SIZE: usize = 24;
 pub const CRYPTO_SECRET_KEY_SIZE: usize = 32;
+pub const CRYPTO_PUBLIC_KEY_SIZE: usize = 32;
 
 pub trait Rng {
     fn getrandom(buf: &mut [u8]);
@@ -78,6 +80,30 @@ pub fn generate_secret_key<R: Rng>() -> SecretKey {
     let mut buf = [0u8; crypto_box::KEY_SIZE];
     R::getrandom(&mut buf);
     SecretKey::from_bytes(buf)
+}
+
+pub fn secret_key(bytes: &str) -> Result<SecretKey> {
+    let bytes = BASE64.decode(bytes.as_bytes())?;
+    if bytes.len() != CRYPTO_SECRET_KEY_SIZE {
+        return Err(Error::InvalidKeyLength(bytes.len()));
+    }
+
+    let mut buf = [0u8; CRYPTO_SECRET_KEY_SIZE];
+    buf.copy_from_slice(&bytes);
+
+    Ok(SecretKey::from(buf))
+}
+
+pub fn public_key(bytes: &str) -> Result<PublicKey> {
+    let bytes = BASE64.decode(bytes.as_bytes())?;
+    if bytes.len() != CRYPTO_PUBLIC_KEY_SIZE {
+        return Err(Error::InvalidKeyLength(bytes.len()));
+    }
+
+    let mut buf = [0u8; CRYPTO_PUBLIC_KEY_SIZE];
+    buf.copy_from_slice(&bytes);
+
+    Ok(PublicKey::from(buf))
 }
 
 pub fn test_sodium_crypto<R: Rng>() -> Result<()> {

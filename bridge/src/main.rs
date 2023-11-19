@@ -1,189 +1,19 @@
 pub mod args;
+pub mod ble;
 pub mod config;
 pub mod errors;
+pub mod ws;
 
 use crate::args::{Args, SubCommand};
 use crate::errors::*;
-use btleplug::api::{
-    bleuuid::uuid_from_u16, BDAddr, Central, CentralEvent, Characteristic, Manager as _,
-    Peripheral as _, ScanFilter, WriteType,
-};
-use btleplug::platform::{Adapter, Manager, Peripheral};
 use clap::Parser;
+use d3xs_protocol::chall;
 use d3xs_protocol::crypto;
-use d3xs_protocol::ipc;
 use data_encoding::{BASE64, BASE64URL_NOPAD};
 use env_logger::Env;
-use futures_util::{SinkExt, StreamExt};
 use tokio::io;
 use tokio::io::AsyncReadExt;
 use tokio::time;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use uuid::Uuid;
-
-const SERVICE_UUID: Uuid = uuid_from_u16(0xFFFF);
-const CHARACTERISTIC_UUID: Uuid = uuid_from_u16(0xAAAA);
-// when working with a websocket, the timeout is much shorter to avoid hanging
-const WS_BLE_TIMEOUT: u64 = 5;
-
-async fn find_by_mac(central: &Adapter, mac: &BDAddr) -> Result<Option<Peripheral>> {
-    for p in central.peripherals().await? {
-        if p.address() == *mac {
-            return Ok(Some(p));
-        }
-    }
-    Ok(None)
-}
-
-async fn try_solve_char(peripheral: Peripheral, characteristic: Characteristic) -> Result<()> {
-    info!("Requesting challenge");
-    let chall = peripheral.read(&characteristic).await?;
-    println!("chall={chall:?}");
-
-    if chall.is_empty() {
-        bail!("Challenge can't be empty");
-    }
-
-    info!("Sending solution");
-    peripheral
-        .write(&characteristic, &chall, WriteType::WithoutResponse)
-        .await?;
-
-    Ok(())
-}
-
-async fn try_solve(peripheral: Peripheral) -> Result<()> {
-    let mac = peripheral.address();
-
-    info!("Connecting to peripheral (mac={mac:?})");
-    peripheral.connect().await?;
-
-    debug!("Discover services...");
-    peripheral.discover_services().await?;
-
-    info!("Enumerating characteristics...");
-    let characteristic = peripheral
-        .characteristics()
-        .into_iter()
-        .filter(|chr| chr.service_uuid == SERVICE_UUID)
-        .find(|chr| chr.uuid == CHARACTERISTIC_UUID)
-        .context("Failed to find service")?;
-    debug!("Found characteristic with matching uuid: {characteristic:?}");
-
-    try_solve_char(peripheral, characteristic).await
-}
-
-async fn try_open(central: &Adapter, mac: &BDAddr) -> Result<()> {
-    let mut events = central.events().await?;
-    central.start_scan(ScanFilter::default()).await?;
-
-    while let Some(event) = events.next().await {
-        trace!("Bluetooth event: {event:?}");
-        if let CentralEvent::DeviceDiscovered(_) = event {
-            if let Some(peripheral) = find_by_mac(central, mac)
-                .await
-                .context("Failed to enumerate peripherals")?
-            {
-                match try_solve(peripheral).await {
-                    Ok(_) => {
-                        return Ok(());
-                    }
-                    Err(err) => {
-                        error!("Failed to solve challenge: {err:#}");
-                    }
-                }
-            }
-        }
-    }
-
-    bail!("Failed to open")
-}
-
-fn verify_solve<'a>(config: &'a config::Config, solve: &ipc::Solve) -> Result<&'a config::Door> {
-    let user = solve
-        .user
-        .as_ref()
-        .context("Solve data is missing `user` field")?;
-    let user = config
-        .users
-        .get(user.as_str())
-        .with_context(|| anyhow!("User is not known: {user:?}"))?;
-
-    if user.authorize.iter().all(|d| *d != solve.door) {
-        bail!("User is not authorized for door");
-    }
-
-    let door = config
-        .doors
-        .get(&solve.door)
-        .with_context(|| anyhow!("Door is not known {:?}", solve.door))?;
-
-    // TODO: nothing is verified yet
-
-    Ok(door)
-}
-
-async fn ws_connect(url: &str, config: &config::Config) -> Result<()> {
-    let ipc = config.to_shared_config()?;
-
-    debug!("Connecting to {url:?}...");
-    let (mut ws_stream, _) = connect_async(url)
-        .await
-        .with_context(|| anyhow!("Failed to connect to {url:?}"))?;
-
-    debug!("Connected, sending configuration...");
-    let ipc = serde_json::to_string(&ipc)?;
-    ws_stream.send(Message::Text(ipc)).await?;
-
-    info!("Connection established, waiting for events...");
-    while let Some(msg) = ws_stream.next().await {
-        let Message::Text(text) = msg? else { continue };
-        let solve = serde_json::from_str::<ipc::Solve>(&text)?;
-        debug!("Received solve attempt: {solve:?}");
-
-        info!("solve={solve:?}");
-        if let Ok(door) = verify_solve(config, &solve) {
-            info!(
-                "Challenge successfully solved (user={:?}, door={door:?})",
-                solve.user.as_ref().unwrap()
-            );
-            if let (Some(mac), Some(_public_key)) = (&door.mac, &door.public_key) {
-                if let Err(err) = ble_open(mac, WS_BLE_TIMEOUT).await {
-                    error!("Failed to open door: {err:#}");
-                } else {
-                    info!("Successfully opened door");
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn ble_open(mac: &str, timeout: u64) -> Result<()> {
-    let mac = BDAddr::from_str_delim(mac)?;
-    let manager = Manager::new().await.unwrap();
-
-    let adapters = manager.adapters().await?;
-    let central = adapters
-        .into_iter()
-        .next()
-        .context("No bluetooth adapters found")?;
-
-    let future = try_open(&central, &mac);
-
-    if timeout == 0 {
-        future.await?;
-    } else {
-        let timeout = time::Duration::from_secs(timeout);
-        time::timeout(timeout, future)
-            .await
-            .context("Operation has timed out")?
-            .context("Operation has failed")?;
-    }
-
-    Ok(())
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -196,12 +26,20 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
     match args.subcommand {
-        SubCommand::Open(open) => ble_open(&open.mac, open.timeout).await?,
+        SubCommand::Open(open) => {
+            let public_key = crypto::public_key(&open.public_key)
+                .map_err(|_| anyhow!("Failed to parse public key"))?;
+            let secret_key = crypto::secret_key(&open.secret_key)
+                .map_err(|_| anyhow!("Failed to parse secret key"))?;
+            let salsa = crypto::SalsaBox::new(&public_key, &secret_key);
+            ble::open(&salsa, &open.mac, open.timeout).await?
+        }
         SubCommand::Connect(connect) => {
             let config = config::Config::load_from_path(connect.config).await?;
+            let mut challenges = chall::UserDoorMap::default();
 
             loop {
-                if let Err(err) = ws_connect(&connect.url, &config).await {
+                if let Err(err) = ws::connect(&connect.url, &config, &mut challenges).await {
                     error!("Websocket error: {err:#}");
                 }
                 time::sleep(time::Duration::from_secs(3)).await;

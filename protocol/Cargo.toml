@@ -15,8 +15,8 @@ ipc = ["serde"]
 crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
 data-encoding = "2.4.0"
 serde = { version = "1.0.192", features = ["derive"], optional = true }
+sha3 = { version = "0.10.8", default-features = false }
 thiserror-no-std = "2.0.2"
-web-sys = { version = "0.3.65", default-features = false, features = ["Location", "Document", "Window"] }
 
 [target.'cfg(not(target_os = "espidf"))'.dependencies]
 getrandom = "0.2"
@@ -24,3 +24,4 @@ getrandom = "0.2"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen = "0.2"
+web-sys = { version = "0.3.65", default-features = false, features = ["Location", "Document", "Window", "Element", "HtmlElement", "HtmlInputElement"] }

@@ -1,5 +1,7 @@
 use crate::errors::*;
+use d3xs_protocol::crypto;
 use d3xs_protocol::ipc;
+use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -29,6 +31,12 @@ impl Config {
     }
 
     pub fn to_shared_config(&self) -> Result<ipc::Config> {
+        let secret_key = crypto::secret_key(&self.bridge.secret_key)
+            .ok()
+            .context("Failed to decode secret key")?;
+        let public_key = secret_key.public_key();
+        let public_key = BASE64.encode(public_key.as_bytes());
+
         let users = self
             .users
             .iter()
@@ -53,7 +61,11 @@ impl Config {
                 )
             })
             .collect();
-        Ok(ipc::Config { users, doors })
+        Ok(ipc::Config {
+            public_key,
+            users,
+            doors,
+        })
     }
 }
 

@@ -10,13 +10,14 @@ use warp::ws::WebSocket;
 
 async fn ws_connect(
     mut ws: WebSocket,
-    config: Arc<RwLock<ipc::Config>>,
-    mut rx: broadcast::Receiver<ipc::Solve>,
+    config: Arc<RwLock<Option<ipc::Config>>>,
+    event_tx: broadcast::Sender<ipc::Event>,
+    mut request_rx: broadcast::Receiver<ipc::Request>,
 ) -> Result<()> {
     loop {
         tokio::select! {
             // subscribe to solve attempts and forward to bridge
-            msg = rx.recv() => if let Ok(msg) = msg {
+            msg = request_rx.recv() => if let Ok(msg) = msg {
                 let data = serde_json::to_string(&msg)?;
                 ws.send(Message::text(data)).await?;
             } else {
@@ -25,10 +26,21 @@ async fn ws_connect(
             // receive config updates from bridge
             msg = ws.next() => if let Some(msg) = msg {
                 if let Ok(msg) = msg?.to_str() {
-                    let data = serde_json::from_str(msg)?;
-                    let mut config = config.write().await;
-                    *config = data;
-                    debug!("Updated in-memory configuration");
+                    let event = serde_json::from_str::<ipc::BridgeEvent>(msg)?;
+                    match event {
+                        ipc::BridgeEvent::Config(data) => {
+                            let mut config = config.write().await;
+                            info!("Bridge has connected (public_key={:?})", data.public_key);
+                            *config = Some(data);
+
+                            // TODO: notify connected clients
+                            // event_tx.send(ipc::Event::Config(data));
+                        },
+                        ipc::BridgeEvent::Challenge(chall) => {
+                            // TODO: find a more efficient way than broadcasting the challenge to all connected clients
+                            event_tx.send(ipc::Event::Challenge(chall)).ok();
+                        }
+                    }
                 }
             } else {
                 return Ok(());
@@ -39,8 +51,9 @@ async fn ws_connect(
 
 pub async fn websocket(
     uuid: Arc<String>,
-    config: Arc<RwLock<ipc::Config>>,
-    tx: broadcast::Sender<ipc::Solve>,
+    config: Arc<RwLock<Option<ipc::Config>>>,
+    event_tx: broadcast::Sender<ipc::Event>,
+    request_tx: broadcast::Sender<ipc::Request>,
     bridge: String,
     ws: warp::ws::Ws,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
@@ -49,9 +62,9 @@ pub async fn websocket(
     }
     debug!("Received bridge connection");
 
-    let rx = tx.subscribe();
+    let request_rx = request_tx.subscribe();
     let reply = ws.on_upgrade(move |websocket| {
-        ws_connect(websocket, config, rx).map(|result| {
+        ws_connect(websocket, config, event_tx, request_rx).map(|result| {
             if let Err(err) = result {
                 info!("websocket error: {err:#}")
             }

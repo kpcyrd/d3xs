@@ -91,12 +91,15 @@ async fn show_wasm() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
 }
 
 async fn show_page(
-    config: Arc<RwLock<ipc::Config>>,
+    config: Arc<RwLock<Option<ipc::Config>>>,
     hb: Arc<Handlebars<'_>>,
     user: String,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
     let config = config.read().await;
 
+    let Some(config) = config.as_ref() else {
+        return Ok(Box::new(StatusCode::NOT_FOUND));
+    };
     let Some(_config) = config.users.get(&user) else {
         return Ok(Box::new(StatusCode::NOT_FOUND));
     };
@@ -128,13 +131,17 @@ async fn main() -> Result<()> {
     };
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
-    let config = Arc::new(RwLock::new(ipc::Config::default()));
+    let config = Arc::new(RwLock::new(None));
     let config = warp::any().map(move || config.clone());
 
     let uuid = Arc::new(args.uuid);
     let uuid = warp::any().map(move || uuid.clone());
 
-    let tx = {
+    let request_tx = {
+        let (tx, _rx) = broadcast::channel(16);
+        warp::any().map(move || tx.clone())
+    };
+    let event_tx = {
         let (tx, _rx) = broadcast::channel(16);
         warp::any().map(move || tx.clone())
     };
@@ -173,7 +180,8 @@ async fn main() -> Result<()> {
         .and_then(show_wasm);
     let ws_user = warp::get()
         .and(config.clone())
-        .and(tx.clone())
+        .and(event_tx.clone())
+        .and(request_tx.clone())
         .and(warp::path::param())
         .and(warp::path::end())
         .and(warp::ws())
@@ -181,7 +189,8 @@ async fn main() -> Result<()> {
     let ws_bridge = warp::get()
         .and(uuid)
         .and(config)
-        .and(tx)
+        .and(event_tx)
+        .and(request_tx)
         .and(warp::path("bridge"))
         .and(warp::path::param())
         .and(warp::path::end())

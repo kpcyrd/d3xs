@@ -6,6 +6,11 @@ export default function() {
     const container = document.getElementById('container');
     const crypto = document.getElementById('crypto');
     const status = document.getElementById('status');
+    const public_key = document.getElementById('public_key');
+    const challenge = document.getElementById('challenge');
+    const response = document.getElementById('response');
+
+    let pendingChallenge = null;
 
     function createSlider(key, label) {
         const slider = document.createElement('div');
@@ -49,13 +54,13 @@ export default function() {
         slider.addEventListener('touchend', function(_event) {
             if (execute) {
                 if (ws) {
-                    let msg = JSON.stringify({
-                        door: key,
-                        code: key,
+                    const msg = JSON.stringify({
+                        "type": "fetch",
+                        "door": key,
                     });
+                    pendingChallenge = key;
                     console.log('send cmd to websocket:', msg);
                     ws.send(msg);
-                    // wasm.greet();
                 }
             }
 
@@ -80,13 +85,41 @@ export default function() {
             container.classList.remove('offline');
             const data = JSON.parse(event.data);
 
-            while (container.firstChild) {
-                container.removeChild(container.lastChild);
-            }
+            if (data.type === 'challenge') {
+                if (pendingChallenge === null) {
+                    return;
+                }
 
-            data.forEach(data => {
-                createSlider(data['id'], data['label']);
-            });
+                // put challenge to html
+                challenge.value = data.challenge;
+
+                // invoke web assembly
+                if (!wasm.solve_challenge()) {
+                    console.log("Web assembly failed to decrypt");
+                    return;
+                }
+
+                // read respnse
+                const code = response.value;
+
+                let msg = JSON.stringify({
+                    type: "solve",
+                    door: pendingChallenge,
+                    code: code,
+                });
+                pendingChallenge = null;
+                console.log('send cmd to websocket:', msg);
+                ws.send(msg);
+            } else if (data.type === 'config') {
+                while (container.firstChild) {
+                    container.removeChild(container.lastChild);
+                }
+
+                public_key.value = data.public_key;
+                data.doors.forEach(data => {
+                    createSlider(data['id'], data['label']);
+                });
+            }
         };
 
         ws.onclose = event => {
@@ -127,6 +160,10 @@ export default function() {
             event.preventDefault();
             crypto.hidden = !crypto.hidden;
             container.hidden = !container.hidden;
+        });
+
+        challenge.addEventListener('change', function() {
+            wasm.solve_challenge();
         });
 
         window.addEventListener('hashchange', validate_key);

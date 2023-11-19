@@ -1,95 +1,106 @@
 use crate::errors::*;
 use d3xs_protocol::ipc;
+use d3xs_protocol::ipc::Event;
 use futures_util::{FutureExt, SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
+use tokio::time;
 use warp::http::StatusCode;
 use warp::ws::Message;
 use warp::ws::WebSocket;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Door {
-    pub id: String,
-    pub label: String,
-}
-
-impl Door {
-    pub fn new(id: String, config: ipc::Door) -> Self {
-        Door {
-            id,
-            label: config.label,
-        }
-    }
+pub struct Challenge {
+    pub code: String,
+    pub door: String,
+    pub issued_at: time::Instant,
 }
 
 async fn ws_connect(
     mut ws: WebSocket,
     user: String,
-    config: Vec<Door>,
-    tx: broadcast::Sender<ipc::Solve>,
+    config: ipc::UiConfig,
+    mut event_rx: broadcast::Receiver<ipc::Event>,
+    request_tx: broadcast::Sender<ipc::Request>,
 ) -> Result<()> {
-    let json = serde_json::to_string(&config)?;
+    let json = serde_json::to_string(&Event::Config(config.clone()))?;
     ws.send(Message::text(json)).await?;
-    let authorized = config.iter().map(|d| d.id.as_str()).collect::<HashSet<_>>();
 
-    while let Some(msg) = ws.next().await {
-        let msg = msg.context("Failed to read from websocket")?;
-        let Ok(msg) = msg.to_str() else { continue };
-        let Ok(mut solve) = serde_json::from_str::<ipc::Solve>(msg) else {
-            continue;
-        };
-        debug!("Received solve attempt: {solve:?}");
-        // don't observe the user provided value, always overwrite
-        solve.user = Some(user.clone());
-
-        let door = solve.door.as_str();
-        if !authorized.contains(door) {
-            warn!("Attempt to access unauthorized resource: {door:?}");
-            continue;
+    loop {
+        tokio::select! {
+            // subscribe to events from bridge
+            msg = event_rx.recv() => if let Ok(msg) = msg {
+                match &msg {
+                    ipc::Event::Config(_) => (),
+                    ipc::Event::Challenge(chall) => {
+                        if chall.user != user {
+                            continue;
+                        }
+                        let json = serde_json::to_string(&msg)?;
+                        ws.send(Message::text(json)).await?;
+                    }
+                }
+            } else {
+                return Ok(());
+            },
+            // receive config updates from bridge
+            msg = ws.next() => if let Some(msg) = msg {
+                let msg = msg.context("Failed to read from websocket")?;
+                let Ok(msg) = msg.to_str() else { continue };
+                let Ok(mut req) = serde_json::from_str::<ipc::Request>(msg) else {
+                    continue;
+                };
+                info!("Received request: {req:?}");
+                match &mut req {
+                    ipc::Request::Fetch(fetch) => fetch.user = Some(user.clone()),
+                    ipc::Request::Solve(solve) => solve.user = Some(user.clone()),
+                }
+                request_tx.send(req).ok();
+            }
         }
-
-        info!("Sending solve attempt to bridge... (user={user:?}, door={door:?})");
-        tx.send(solve).ok();
     }
-
-    Ok(())
 }
 
 pub async fn websocket(
-    config: Arc<RwLock<ipc::Config>>,
-    tx: broadcast::Sender<ipc::Solve>,
+    config: Arc<RwLock<Option<ipc::Config>>>,
+    event_tx: broadcast::Sender<ipc::Event>,
+    request_tx: broadcast::Sender<ipc::Request>,
     user: String,
     ws: warp::ws::Ws,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let authorized = {
+    let ui = {
         let config = config.read().await;
-
-        let mut doors = config.doors.clone();
-        let Some(config) = config.users.get(&user) else {
+        let Some(config) = config.as_ref() else {
             return Ok(Box::new(StatusCode::NOT_FOUND));
         };
 
-        let config = config.clone();
+        let mut doors = config.doors.clone();
+        let Some(userdata) = config.users.get(&user) else {
+            return Ok(Box::new(StatusCode::NOT_FOUND));
+        };
+
+        let userdata = userdata.clone();
         debug!(
             "Received client connection: user={:?} config={:?}",
-            user, config
+            user, userdata
         );
 
         let mut authorized = Vec::new();
-        for auth in config.authorize {
+        for auth in userdata.authorize {
             if let Some(door) = doors.remove(&auth) {
-                authorized.push(Door::new(auth, door));
+                authorized.push(ipc::UiDoor::new(auth, door));
             }
         }
 
-        authorized
+        ipc::UiConfig {
+            public_key: config.public_key.clone(),
+            doors: authorized,
+        }
     };
 
+    let event_rx = event_tx.subscribe();
     let reply = ws.on_upgrade(move |websocket| {
-        ws_connect(websocket, user, authorized, tx).map(|result| {
+        ws_connect(websocket, user, ui, event_rx, request_tx).map(|result| {
             if let Err(err) = result {
                 info!("websocket error: {err:#}")
             }

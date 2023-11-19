@@ -1,8 +1,8 @@
 #![cfg(target_os = "espidf")]
 
 use d3xs_firmware::chall;
-use d3xs_firmware::chall::Challenge;
 use d3xs_firmware::errors::*;
+use d3xs_protocol::chall::Challenge;
 use d3xs_protocol::crypto;
 use data_encoding::BASE64;
 use esp32_nimble::utilities::{mutex::Condvar, mutex::Mutex, BleUuid};
@@ -130,7 +130,6 @@ fn main() -> ! {
     let latest_nonce_write = latest_nonce.clone();
     let main_action_write = main_action.clone();
     let notify_write = notify.clone();
-    let salsa_write = salsa.clone();
 
     characteristic
         .lock()
@@ -148,7 +147,7 @@ fn main() -> ! {
             println!("[🔍] wrote to writable characteristic: {buf:?}");
 
             let solved = if let Some(chall) = &*latest_nonce_write.lock() {
-                chall.verify(&salsa_write, buf).is_ok()
+                chall.verify(buf).is_ok()
             } else {
                 false
             };
