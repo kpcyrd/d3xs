@@ -1,25 +1,16 @@
 # d3xs-firmware
 
-Firmware for `esp32c3` microcontroller (riscv32imc-unknown-none-elf).
+Firmware for `esp32c3` microcontroller (riscv32imc-esp-espidf).
 
 ## Building and testing the firmware
 
-Build the firmware binary `target/riscv32imc-unknown-none-elf/release/d3xs-firmware`:
-```
-cd firmware/
-RUSTC_BOOTSTRAP=1 cargo build --release
-```
+For basic usage refer to the regular README in the parent directory.
 
-Flash to an attached esp32c3:
-```
-cd ..
-espflash flash ./target/riscv32imc-unknown-none-elf/release/d3xs-firmware
-```
+For development you can use this command to compile the firmware, flash it to an attached esp32c3 and open the serial monitor after flashing:
 
-For quickly editing the firmware and opening a serial monitor after flashing you can use this command:
-```
-cd firmware/
-RUSTC_BOOTSTRAP=1 cargo espflash flash --release -M
+```sh
+cd firmware
+D3XS_BRIDGE_KEY="cW49lkXDeM0wOT8N7QxAWePmWs8xZK1FXt1uQT/pcG4=" RUSTC_BOOTSTRAP=1 cargo espflash flash --release -M
 ```
 
 ## Unit testing
