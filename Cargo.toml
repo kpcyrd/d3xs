@@ -5,9 +5,20 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["bridge", "firmware", "protocol"]
+
+# related to firmware, but needs to be specified at workspace root
+[profile.release]
+opt-level = "s"
+[profile.dev]
+debug = true
+opt-level = "z"
+
 [dependencies]
 anyhow = "1.0.72"
 clap = { version = "4.3.19", features = ["derive", "env"] }
+d3xs-protocol = { version = "0.1.0", path = "protocol", features = ["ipc"] }
 env_logger = "0.10.0"
 futures-util = "0.3.28"
 handlebars = "4.3.7"
@@ -15,7 +26,7 @@ log = "0.4.19"
 serde = { version = "1.0.174", features = ["derive"] }
 serde_json = "1.0.103"
 tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
-toml = "0.7.6"
+toml = "0.8"
 warp = "0.3.5"
 
 [build-dependencies]

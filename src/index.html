@@ -3,11 +3,24 @@
     <head>
         <meta name=viewport content="width=device-width, user-scalable=no">
         <link rel="stylesheet" href="/assets/{{style_name}}">
-        <script src="/assets/{{script_name}}" defer></script>
+        <script type="module">
+            import init from '/assets/{{wasm_bindgen_name}}';
+            import main from '/assets/{{script_name}}';
+            init('/assets/{{wasm_name}}').then(main());
+        </script>
     </head>
     <body>
         <div id="container">
             Connecting...
         </div>
+        <div id="crypto" hidden>
+            <h1>Public Key</h1>
+            <input id="public_key">
+            <h1>Challenge</h1>
+            <input id="challenge">
+            <h1>Response</h1>
+            <input id="response" readonly>
+        </div>
+        <div id="status"></div>
     </body>
 </html>

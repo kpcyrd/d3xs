@@ -1,10 +1,19 @@
+[bridge]
+secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
+
 [users.alice]
+# https://example.com/TpR3WQMpINCjZoLqAtNQcAZxwIqcITji-8KLJfdJEFc#M3m0UwalijW0o+mzFiGH5VCFy5gS8NuqF9wEYfP5TfE=
+public_key = "TpR3WQMpINCjZoLqAtNQcAZxwIqcITji+8KLJfdJEFc="
 authorize = ["home", "building"]
 
 [users.bob]
+# https://example.com/7Pb0_x8UgjvcInZFy8FX-o_8pgMQHc2G42BftKnsBUo#gZn8TSOp0AlflCRhd+OFdv6RHUaJJyQQoQkMLg1MhOs=
+public_key = "7Pb0/x8UgjvcInZFy8FX+o/8pgMQHc2G42BftKnsBUo="
 
 [doors.home]
 label = "Home"
 
 [doors.building]
 label = "Building"
+mac = "ec:da:3b:ff:ff:ff"
+public_key = "6JgMhuAy8espdQUujWW93RXDtZZBF07JZ4pTeJ2Sx1Q="

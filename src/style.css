@@ -19,7 +19,7 @@ body {
     filter: grayscale(1);
 }
 
-#container {
+#container, #crypto {
     width: 100%;
     padding: 25px 0;
     box-sizing: border-box;
@@ -36,4 +36,19 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+#status {
+    align-self: flex-end;
+}
+
+#crypto input {
+    background: black;
+    border: 2px solid var(--green);
+    color: var(--green);
+    width: 100%;
+    box-sizing: border-box;
+    padding: 15px;
+    font-family: monospace;
+    font-weight: bold;
 }

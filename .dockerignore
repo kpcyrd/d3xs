@@ -4,3 +4,6 @@
 /.github
 /.gitignore
 /target/
+/target-wasm/
+/target-firmware/
+/protocol/pkg/

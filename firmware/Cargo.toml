@@ -1,0 +1,26 @@
+[package]
+name = "d3xs-firmware"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crypto_box = { version = "0.9.1", default-features = false, features = ["salsa20"] }
+d3xs-protocol = { version = "0.1.0", path = "../protocol" }
+data-encoding = "2.4.0"
+thiserror-no-std = "2.0.2"
+
+[target.'cfg(target_os = "espidf")'.dependencies]
+esp-idf-hal = "0.42"
+esp-idf-svc = { version = "0.47.1", default-features = false, features = ["alloc", "binstart", "critical-section", "embassy-sync", "embassy-time-driver", "native", "std"] }
+esp32-nimble = { version = "0.3.1", default-features = false }
+smart-leds = "0.3.0"
+ws2812-esp32-rmt-driver = "0.6.0"
+
+[target.'cfg(not(target_os = "espidf"))'.dependencies]
+getrandom = "0.2.10"
+
+[build-dependencies]
+d3xs-protocol = { version = "0.1.0", path = "../protocol" }
+embuild = { version = "0.31.3", features = ["espidf"] }
