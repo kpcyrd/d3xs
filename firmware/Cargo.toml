@@ -22,4 +22,5 @@ ws2812-esp32-rmt-driver = "0.6.0"
 getrandom = "0.2.10"
 
 [build-dependencies]
+d3xs-protocol = { version = "0.1.0", path = "../protocol" }
 embuild = { version = "0.31.3", features = ["espidf"] }

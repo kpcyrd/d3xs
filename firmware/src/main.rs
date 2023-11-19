@@ -1,5 +1,7 @@
 #![cfg(target_os = "espidf")]
 
+mod keys;
+
 use d3xs_firmware::chall;
 use d3xs_firmware::errors::*;
 use d3xs_protocol::chall::Challenge;
@@ -37,22 +39,6 @@ fn ble_name() -> &'static str {
     BLE_NAME.unwrap_or("esp32c3-d3xs")
 }
 
-fn ctrl_public_key() -> crypto::PublicKey {
-    crypto::PublicKey::from([
-        0xe8, 0x98, 0xc, 0x86, 0xe0, 0x32, 0xf1, 0xeb, 0x29, 0x75, 0x5, 0x2e, 0x8d, 0x65, 0xbd,
-        0xdd, 0x15, 0xc3, 0xb5, 0x96, 0x41, 0x17, 0x4e, 0xc9, 0x67, 0x8a, 0x53, 0x78, 0x9d, 0x92,
-        0xc7, 0x54,
-    ])
-}
-
-fn self_secret_key() -> crypto::SecretKey {
-    crypto::SecretKey::from([
-        0xb5, 0x81, 0xfb, 0x5a, 0xe1, 0x82, 0xa1, 0x6f, 0x60, 0x3f, 0x39, 0x27, 0xd, 0x4e, 0x3b,
-        0x95, 0xbc, 0x0, 0x83, 0x10, 0xb7, 0x27, 0xa1, 0x1d, 0xd4, 0xe7, 0x84, 0xa0, 0x4, 0x4d,
-        0x46, 0x1b,
-    ])
-}
-
 fn detect_ble_mac() -> Result<String> {
     let mut mac = [0u8; 6];
     let ret =
@@ -80,8 +66,8 @@ fn main() -> ! {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     println!("[✨] hello, world!");
-    let self_secret_key = self_secret_key();
-    let salsa = Arc::new(crypto::SalsaBox::new(&ctrl_public_key(), &self_secret_key));
+    let self_secret_key = keys::door_key();
+    let salsa = Arc::new(crypto::SalsaBox::new(&keys::bridge_key(), &self_secret_key));
 
     let self_public_key = self_secret_key.public_key();
     println!(
