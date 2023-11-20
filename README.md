@@ -119,6 +119,33 @@ authorize = ["home"]
 
 The bridge automatically syncs the relevant parts of the configuration to the public webserver.
 
+## ☁️ Setting up network access
+
+The d3xs binary contains a webserver with embedded assets for the web interface. It has no configuration besides the port to bind to, and a uuid that is used as shared secret to authenticate the bridge.
+
+```sh
+d3xs -B 127.0.0.1:5000 2120a559-2fbd-4595-be57-4e78changeme
+```
+
+For security reasons this interface should be secured with https instead of exposing it directly to the network.
+
+After this is setup you can start the bridge and connect it to the public webserver:
+
+```sh
+d3xs-bridge connect --config example.toml wss://example.com/bridge/2120a559-2fbd-4595-be57-4e78changeme
+```
+
+The url can also be configured in the config file:
+
+```toml
+[bridge]
+# public_key = "cW49lkXDeM0wOT8N7QxAWePmWs8xZK1FXt1uQT/pcG4="
+secret_key = "D6Ir3Ql7jYStdzIiIgCEZuc0L/TFNqQhH08kSNP3gpM="
+url = "wss://example.com/bridge/2120a559-2fbd-4595-be57-4e78changeme"
+```
+
+To start the bridge automatically at boot there's a reference openrc config at `contrib/d3xs-bridge.init`.
+
 ## ⚖️ License
 
 `GPL-3.0-or-later`

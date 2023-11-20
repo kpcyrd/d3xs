@@ -17,7 +17,7 @@ pub async fn connect(
     challenges: &mut chall::UserDoorMap,
 ) -> Result<()> {
     let ipc = config.to_shared_config()?;
-    let secret_key = crypto::secret_key(&config.bridge.secret_key)
+    let secret_key = crypto::secret_key(&config.system.secret_key)
         .map_err(|_| anyhow!("Failed to decode secret key :<"))?;
 
     debug!("Connecting to {url:?}...");
@@ -57,7 +57,7 @@ pub async fn connect(
                 let chall = challenges.generate_next::<crypto::Random>(user.clone(), door, &salsa);
 
                 let chall = ipc::Challenge {
-                    user: user,
+                    user,
                     challenge: BASE64.encode(&chall.encrypted),
                 };
                 let json = serde_json::to_string(&ipc::Event::Challenge(chall))?;

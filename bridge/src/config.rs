@@ -9,7 +9,7 @@ use tokio::fs;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Config {
-    pub bridge: Bridge,
+    pub system: Bridge,
     #[serde(default)]
     pub users: HashMap<String, User>,
     #[serde(default)]
@@ -31,7 +31,7 @@ impl Config {
     }
 
     pub fn to_shared_config(&self) -> Result<ipc::Config> {
-        let secret_key = crypto::secret_key(&self.bridge.secret_key)
+        let secret_key = crypto::secret_key(&self.system.secret_key)
             .ok()
             .context("Failed to decode secret key")?;
         let public_key = secret_key.public_key();
@@ -72,6 +72,7 @@ impl Config {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bridge {
     pub secret_key: String,
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -95,14 +96,14 @@ mod tests {
     #[test]
     fn parse_empty() -> Result<()> {
         let config = Config::parse(
-            r#"[bridge]
+            r#"[system]
 secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
 "#,
         )?;
         assert_eq!(
             config,
             Config {
-                bridge: Bridge {
+                system: Bridge {
                     secret_key: "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g=".to_string(),
                 },
                 users: HashMap::new(),
@@ -118,7 +119,7 @@ secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
         assert_eq!(
             config,
             Config {
-                bridge: Bridge {
+                system: Bridge {
                     secret_key: "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g=".to_string(),
                 },
                 users: {

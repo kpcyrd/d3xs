@@ -31,7 +31,7 @@ pub struct Open {
 #[derive(Debug, clap::Parser)]
 pub struct Connect {
     /// Address of websocket to connect to (including uuid)
-    pub url: String,
+    pub url: Option<String>,
     #[arg(short, long, env = "D3XS_CONFIG")]
     pub config: PathBuf,
     /// How many seconds until the bluetooth operation times out (0 for no limit)

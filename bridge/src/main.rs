@@ -38,8 +38,16 @@ async fn main() -> Result<()> {
             let config = config::Config::load_from_path(connect.config).await?;
             let mut challenges = chall::UserDoorMap::default();
 
+            let url = if let Some(url) = &connect.url {
+                url
+            } else if let Some(url) = &config.system.url {
+                url
+            } else {
+                bail!("Missing url to connect to");
+            };
+
             loop {
-                if let Err(err) = ws::connect(&connect.url, &config, &mut challenges).await {
+                if let Err(err) = ws::connect(url, &config, &mut challenges).await {
                     error!("Websocket error: {err:#}");
                 }
                 time::sleep(time::Duration::from_secs(3)).await;

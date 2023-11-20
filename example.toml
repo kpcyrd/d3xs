@@ -1,5 +1,6 @@
 [bridge]
 secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
+# url = "wss://example.com/bridge/2120a559-2fbd-4595-be57-4e78changeme"
 
 [users.alice]
 # https://example.com/TpR3WQMpINCjZoLqAtNQcAZxwIqcITji-8KLJfdJEFc#M3m0UwalijW0o+mzFiGH5VCFy5gS8NuqF9wEYfP5TfE=

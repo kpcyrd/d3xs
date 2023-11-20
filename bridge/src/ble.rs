@@ -36,7 +36,7 @@ async fn try_solve_service(
     }
 
     let mut decrypted = [0u8; 4096];
-    let decrypted = crypto::decrypt(&salsa, &chall, &mut decrypted)
+    let decrypted = crypto::decrypt(salsa, &chall, &mut decrypted)
         .map_err(|_| anyhow!("Failed to decrypt solution"))?;
 
     info!("Sending solution");

@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+description="d3xs-bridge"
+
+: ${error_logger="logger -t d3xs-bridge -p daemon.info >/dev/null 2>&1"}
+
+cfgfile="/etc/d3xs/bridge.toml"
+command="/usr/bin/d3xs-bridge"
+command_args="connect -c ${cfgfile}"
+command_user="d3xs"
+pidfile="/run/$RC_SVCNAME.pid"
+command_background=true
+
+depend() {
+	need net
+}
