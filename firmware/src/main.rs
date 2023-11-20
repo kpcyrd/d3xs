@@ -21,7 +21,7 @@ use ws2812_esp32_rmt_driver::Ws2812Esp32Rmt;
 
 const SERVICE_UUID: BleUuid = BleUuid::Uuid16(0xffff);
 const CHAR_UUID: BleUuid = BleUuid::Uuid16(0xaaaa);
-const BLE_NAME: Option<&str> = option_env!("BLE_NAME");
+const BLE_NAME: Option<&str> = option_env!("D3XS_BLE_NAME");
 const BUZZ_SECONDS: usize = 8;
 
 const LED_RED: RGB<u8> = RGB::new(16, 0, 0);

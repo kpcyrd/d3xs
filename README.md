@@ -75,7 +75,7 @@ make firmware
 
 If `D3XS_DOOR_KEY` is not provided, a random one will be generated during build, the public key can be read from serial output during boot (as well as the bluetooth mac address). The `D3XS_BRIDGE_KEY` variable however is important or you won't be able to send any commands to the microcontroller.
 
-You can also customize the bluetooth name by adding something like `BLE_NAME=d3xs1`.
+You can also customize the bluetooth name by adding something like `D3XS_BLE_NAME=d3xs1`.
 
 To flash the firmware to an attached esp32c3 use:
 
