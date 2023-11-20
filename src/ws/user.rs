@@ -56,6 +56,8 @@ async fn ws_connect(
                     ipc::Request::Solve(solve) => solve.user = Some(user.clone()),
                 }
                 request_tx.send(req).ok();
+            } else {
+                return Ok(());
             }
         }
     }
