@@ -1,7 +1,7 @@
 FROM alpine:3.18
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 RUN --mount=type=cache,target=/var/cache/apk ln -vs /var/cache/apk /etc/apk/cache && \
-    apk add musl-dev cargo wasm-pack make pkgconf dbus-dev && \
+    apk add musl-dev cargo wasm-pack make pkgconf dbus-dev binaryen && \
     rm /etc/apk/cache
 WORKDIR /app
 COPY ./ /app
