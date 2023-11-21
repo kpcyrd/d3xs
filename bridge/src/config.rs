@@ -105,6 +105,7 @@ secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
             Config {
                 system: Bridge {
                     secret_key: "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g=".to_string(),
+                    url: None,
                 },
                 users: HashMap::new(),
                 doors: HashMap::new(),
@@ -121,6 +122,7 @@ secret_key = "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g="
             Config {
                 system: Bridge {
                     secret_key: "cRbNcnt4bw49I/AQb0wcjIBoqoLBayZAneTCGuG1g9g=".to_string(),
+                    url: None,
                 },
                 users: {
                     let mut m = HashMap::new();

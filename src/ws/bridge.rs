@@ -12,34 +12,38 @@ async fn ws_connect(
     mut ws: WebSocket,
     config: Arc<RwLock<Option<ipc::Config>>>,
     event_tx: broadcast::Sender<ipc::Event>,
-    mut request_rx: broadcast::Receiver<ipc::Request>,
+    mut request_rx: broadcast::Receiver<ipc::ClientRequest>,
 ) -> Result<()> {
     loop {
         tokio::select! {
-            // subscribe to solve attempts and forward to bridge
+            // forward all messages from websocket clients to bridge
             msg = request_rx.recv() => if let Ok(msg) = msg {
                 let data = serde_json::to_string(&msg)?;
                 ws.send(Message::text(data)).await?;
             } else {
                 return Ok(());
             },
-            // receive config updates from bridge
+            // receive messages from bridge (config updates and challenges)
             msg = ws.next() => if let Some(msg) = msg {
-                if let Ok(msg) = msg?.to_str() {
-                    let event = serde_json::from_str::<ipc::BridgeEvent>(msg)?;
-                    match event {
-                        ipc::BridgeEvent::Config(data) => {
-                            let mut config = config.write().await;
-                            info!("Bridge has connected (public_key={:?})", data.public_key);
-                            *config = Some(data);
-
-                            // TODO: notify connected clients
-                            // event_tx.send(ipc::Event::Config(data));
-                        },
-                        ipc::BridgeEvent::Challenge(chall) => {
-                            // TODO: find a more efficient way than broadcasting the challenge to all connected clients
-                            event_tx.send(ipc::Event::Challenge(chall)).ok();
-                        }
+                let Ok(msg) = msg else { continue };
+                let Ok(msg) = msg.to_str() else {
+                    warn!("bridge sent invalid utf-8");
+                    continue;
+                };
+                let Ok(event) = serde_json::from_str::<ipc::BridgeResponse>(msg) else {
+                    warn!("bridge sent malformed json");
+                    continue;
+                };
+                match event {
+                    ipc::BridgeResponse::Config(data) => {
+                        let mut config = config.write().await;
+                        info!("Bridge has connected (public_key={:?})", data.public_key);
+                        *config = Some(data);
+                        event_tx.send(ipc::Event::Config).ok();
+                    },
+                    ipc::BridgeResponse::Challenge(chall) => {
+                        // TODO: find a more efficient way than broadcasting the challenge to all connected clients
+                        event_tx.send(ipc::Event::Challenge(chall)).ok();
                     }
                 }
             } else {
@@ -53,7 +57,7 @@ pub async fn websocket(
     uuid: Arc<String>,
     config: Arc<RwLock<Option<ipc::Config>>>,
     event_tx: broadcast::Sender<ipc::Event>,
-    request_tx: broadcast::Sender<ipc::Request>,
+    request_tx: broadcast::Sender<ipc::ClientRequest>,
     bridge: String,
     ws: warp::ws::Ws,
 ) -> Result<Box<dyn warp::Reply>, warp::Rejection> {
@@ -66,7 +70,7 @@ pub async fn websocket(
     let reply = ws.on_upgrade(move |websocket| {
         ws_connect(websocket, config, event_tx, request_rx).map(|result| {
             if let Err(err) = result {
-                info!("websocket error: {err:#}")
+                error!("bridge websocket error: {err:#}");
             }
         })
     });

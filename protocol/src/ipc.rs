@@ -11,16 +11,53 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Event {
-    Config(UiConfig),
-    Challenge(Challenge),
+pub struct User {
+    #[serde(default)]
+    pub authorize: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Door {
+    pub label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum BridgeEvent {
-    Config(Config),
+pub enum Event {
+    Config,
+    Challenge(Challenge),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Challenge {
+    pub user: String,
+    pub challenge: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ClientRequest {
+    Fetch(Fetch),
+    Solve(Solve),
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Fetch {
+    pub user: Option<String>,
+    pub door: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Solve {
+    pub user: Option<String>,
+    pub door: String,
+    pub code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ClientResponse {
+    Config(UiConfig),
     Challenge(Challenge),
 }
 
@@ -46,38 +83,8 @@ impl UiDoor {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Challenge {
-    pub user: String,
-    pub challenge: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct User {
-    #[serde(default)]
-    pub authorize: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Door {
-    pub label: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum Request {
-    Fetch(Fetch),
-    Solve(Solve),
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct Fetch {
-    pub user: Option<String>,
-    pub door: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Solve {
-    pub user: Option<String>,
-    pub door: String,
-    pub code: String,
+pub enum BridgeResponse {
+    Config(Config),
+    Challenge(Challenge),
 }

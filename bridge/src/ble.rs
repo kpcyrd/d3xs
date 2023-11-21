@@ -56,7 +56,7 @@ async fn try_solve(salsa: &crypto::SalsaBox, peripheral: Peripheral) -> Result<(
     debug!("Discover services...");
     peripheral.discover_services().await?;
 
-    info!("Enumerating characteristics...");
+    debug!("Enumerating characteristics...");
     let characteristic = peripheral
         .characteristics()
         .into_iter()

@@ -6,10 +6,20 @@ use d3xs_protocol::crypto;
 use d3xs_protocol::ipc;
 use data_encoding::BASE64;
 use futures_util::{SinkExt, StreamExt};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use tokio_tungstenite::{
+    connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
+};
 
 // when working with a websocket, the timeout is much shorter to avoid hanging
 const WS_BLE_TIMEOUT: u64 = 5;
+
+type Stream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+
+async fn send_ws(ws_stream: &mut Stream, msg: &ipc::BridgeResponse) -> Result<()> {
+    let ipc = serde_json::to_string(&msg)?;
+    ws_stream.send(Message::Text(ipc)).await?;
+    Ok(())
+}
 
 pub async fn connect(
     url: &str,
@@ -26,16 +36,15 @@ pub async fn connect(
         .with_context(|| anyhow!("Failed to connect to {url:?}"))?;
 
     debug!("Connected, sending configuration...");
-    let ipc = serde_json::to_string(&ipc::BridgeEvent::Config(ipc))?;
-    ws_stream.send(Message::Text(ipc)).await?;
+    send_ws(&mut ws_stream, &ipc::BridgeResponse::Config(ipc)).await?;
 
     info!("Connection established, waiting for events...");
     while let Some(msg) = ws_stream.next().await {
         let Message::Text(text) = msg? else { continue };
-        let request = serde_json::from_str::<ipc::Request>(&text)?;
+        let request = serde_json::from_str::<ipc::ClientRequest>(&text)?;
 
         match request {
-            ipc::Request::Fetch(fetch) => {
+            ipc::ClientRequest::Fetch(fetch) => {
                 let Some(user) = fetch.user else { continue };
                 let door = fetch.door;
 
@@ -60,10 +69,9 @@ pub async fn connect(
                     user,
                     challenge: BASE64.encode(&chall.encrypted),
                 };
-                let json = serde_json::to_string(&ipc::Event::Challenge(chall))?;
-                ws_stream.send(Message::text(json)).await?;
+                send_ws(&mut ws_stream, &ipc::BridgeResponse::Challenge(chall)).await?;
             }
-            ipc::Request::Solve(solve) => {
+            ipc::ClientRequest::Solve(solve) => {
                 debug!("Received solve attempt: {solve:?}");
                 let Some(user) = solve.user else { continue };
                 let Ok(code) = BASE64.decode(solve.code.as_bytes()) else {
