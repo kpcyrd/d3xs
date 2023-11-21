@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     make wasm && \
     CARGO_HOME=/var/cache/buildkit/cargo \
     CARGO_TARGET_DIR=/var/cache/buildkit/target \
-    make binaries && \
+    cargo build --release --locked -p d3xs -p d3xs-bridge && \
     cp -v /var/cache/buildkit/target/release/d3xs* .
 RUN strip d3xs d3xs-bridge
 
