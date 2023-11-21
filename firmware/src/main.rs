@@ -163,7 +163,10 @@ fn main() -> ! {
             *latest_nonce.lock() = Some(chall);
         }
 
-        if let Some(action) = main_action.lock().take() {
+        // lock mutex, read action and immediately release mutex
+        let action = { main_action.lock().take() };
+
+        if let Some(action) = action {
             match action {
                 MainAction::LedSuccess => {
                     switch.set_high().unwrap();
@@ -184,8 +187,11 @@ fn main() -> ! {
                     }
                 }
             }
-        }
 
-        notify.wait_timeout(notify_mutex.lock(), Duration::from_secs(5));
+            // remove any action queued while the door was open
+            *main_action.lock() = None;
+        } else {
+            notify.wait_timeout(notify_mutex.lock(), Duration::from_secs(5));
+        }
     }
 }
