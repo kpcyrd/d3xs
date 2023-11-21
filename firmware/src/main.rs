@@ -29,6 +29,7 @@ const LED_GREEN: RGB<u8> = RGB::new(0, 16, 0);
 // const LED_YELLOW: RGB<u8> = RGB::new(10, 10, 0);
 const LED_OFF: RGB<u8> = RGB::new(0, 0, 0);
 
+#[derive(PartialEq)]
 pub enum MainAction {
     LedSuccess,
     LedFail,
@@ -146,9 +147,14 @@ fn main() -> ! {
             };
 
             let mut guard = main_action_write.lock();
-            *guard = Some(action);
+            // never replace a pending success operation
+            if *guard != Some(MainAction::LedSuccess) {
+                *guard = Some(action);
+            }
+            // notify subscribers about a value being available
             notify_write.notify_all();
 
+            // complete ble write operation
             args.reject_with_error_code(ret);
         });
 
@@ -177,6 +183,9 @@ fn main() -> ! {
                         esp_idf_hal::delay::FreeRtos::delay_ms(250);
                     }
                     switch.set_low().unwrap();
+
+                    // remove any action queued while the door was open
+                    *main_action.lock() = None;
                 }
                 MainAction::LedFail => {
                     for _ in 0..2 {
@@ -187,9 +196,6 @@ fn main() -> ! {
                     }
                 }
             }
-
-            // remove any action queued while the door was open
-            *main_action.lock() = None;
         } else {
             notify.wait_timeout(notify_mutex.lock(), Duration::from_secs(5));
         }
