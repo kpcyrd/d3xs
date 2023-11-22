@@ -18,6 +18,8 @@ To build this project you need:
 - pkg-config
 - make
 - The dbus library and header files (`dbus` on Arch Linux, `libdbus-1-dev` on Debian, `dbus-dev` on Alpine)
+    - For MacOS and Windows you don't need extra libraries, but are both untested
+    - For MacOS you need to give [your terminal permission to bluetooth](https://github.com/deviceplug/btleplug#macos) to fully use the d3xs-bridge binary
 - [wasm-pack](https://github.com/rustwasm/wasm-pack)
 - [cargo-espflash](https://github.com/esp-rs/espflash) (optional)
 
