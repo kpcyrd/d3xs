@@ -1,4 +1,5 @@
 use crate::errors::*;
+use crate::ws;
 use d3xs_protocol::ipc;
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use std::sync::Arc;
@@ -55,8 +56,11 @@ async fn ws_connect(
     let json = serde_json::to_string(&ipc::ClientResponse::Config(view))?;
     ws.send(Message::text(json)).await?;
 
+    let mut ping = time::interval(ws::WS_PING_INTERVAL);
     loop {
         tokio::select! {
+            // ping clients at interval
+            _ = ping.tick() => ws.send(Message::ping(vec![])).await?,
             // subscribe to events from bridge
             msg = event_rx.recv() => if let Ok(msg) = msg {
                 match msg {
@@ -81,10 +85,7 @@ async fn ws_connect(
             // receive messages from websocket clients, forward to bridge
             msg = ws.next() => if let Some(msg) = msg {
                 let Ok(msg) = msg else { continue };
-                let Ok(msg) = msg.to_str() else {
-                    warn!("websocket client sent invalid utf-8");
-                    continue;
-                };
+                let Ok(msg) = msg.to_str() else { continue };
                 let Ok(mut req) = serde_json::from_str::<ipc::ClientRequest>(msg) else {
                     warn!("websocket client sent invalid json");
                     continue;

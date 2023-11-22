@@ -21,6 +21,98 @@ async fn send_ws(ws_stream: &mut Stream, msg: &ipc::BridgeResponse) -> Result<()
     Ok(())
 }
 
+async fn process_fetch(
+    ws_stream: &mut Stream,
+    config: &config::Config,
+    secret_key: &crypto::SecretKey,
+    challenges: &mut chall::UserDoorMap,
+    fetch: ipc::Fetch,
+) -> Result<()> {
+    let Some(user) = fetch.user else {
+        return Ok(());
+    };
+    let door = fetch.door;
+
+    info!("Challenge has been requested (user={user:?}, door={door:?}");
+    let userdata = config
+        .users
+        .get(&user)
+        .with_context(|| anyhow!("Failed to find user: {user:?}"))?;
+
+    if userdata.authorize.iter().all(|d| *d != door) {
+        warn!("User is not authorized for door (user={user:?}, door={door:?}");
+        return Ok(());
+    }
+
+    let public_key = crypto::public_key(&userdata.public_key)
+        .map_err(|_| anyhow!("Failed to decode public key"))?;
+
+    let salsa = crypto::SalsaBox::new(&public_key, secret_key);
+    let chall = challenges.generate_next::<crypto::Random>(user.clone(), door, &salsa);
+
+    let chall = ipc::Challenge {
+        user,
+        challenge: BASE64.encode(&chall.encrypted),
+    };
+    send_ws(ws_stream, &ipc::BridgeResponse::Challenge(chall)).await?;
+
+    Ok(())
+}
+
+async fn process_solve(
+    _ws_stream: &mut Stream,
+    config: &config::Config,
+    secret_key: &crypto::SecretKey,
+    challenges: &mut chall::UserDoorMap,
+    solve: ipc::Solve,
+) -> Result<()> {
+    debug!("Received solve attempt: {solve:?}");
+    let Some(user) = solve.user else {
+        return Ok(());
+    };
+    let Ok(code) = BASE64.decode(solve.code.as_bytes()) else {
+        return Ok(());
+    };
+
+    let userdata = config
+        .users
+        .get(&user)
+        .with_context(|| anyhow!("Failed to find user: {user:?}"))?;
+
+    let public_key = crypto::public_key(&userdata.public_key)
+        .map_err(|_| anyhow!("Failed to decode public key"))?;
+
+    if let Ok(door) = challenges.verify(user.clone(), solve.door.clone(), &code) {
+        info!("Challenge successfully solved (user={user:?}, door={door:?})",);
+        let salsa = crypto::SalsaBox::new(&public_key, secret_key);
+        challenges.reset::<crypto::Random>(user.clone(), door.clone(), &salsa);
+
+        let door = config
+            .doors
+            .get(&door)
+            .with_context(|| anyhow!("Door is not known {door:?}"))?;
+
+        if let (Some(mac), Some(public_key)) = (&door.mac, &door.public_key) {
+            let public_key = crypto::public_key(public_key)
+                .map_err(|_| anyhow!("Failed to parse public key"))?;
+
+            let salsa = crypto::SalsaBox::new(&public_key, secret_key);
+            if let Err(err) = ble::open(&salsa, mac, WS_BLE_TIMEOUT).await {
+                error!("Failed to open door: {err:#}");
+            } else {
+                info!("Successfully opened door");
+            }
+        }
+    } else {
+        warn!(
+            "Solve attempt failed (user={user:?}, door={:?})",
+            solve.door
+        );
+    }
+
+    Ok(())
+}
+
 pub async fn connect(
     url: &str,
     config: &config::Config,
@@ -45,74 +137,10 @@ pub async fn connect(
 
         match request {
             ipc::ClientRequest::Fetch(fetch) => {
-                let Some(user) = fetch.user else { continue };
-                let door = fetch.door;
-
-                info!("Challenge has been requested (user={user:?}, door={door:?}");
-                let userdata = config
-                    .users
-                    .get(&user)
-                    .with_context(|| anyhow!("Failed to find user: {user:?}"))?;
-
-                if userdata.authorize.iter().all(|d| *d != door) {
-                    warn!("User is not authorized for door (user={user:?}, door={door:?}");
-                    continue;
-                }
-
-                let public_key = crypto::public_key(&userdata.public_key)
-                    .map_err(|_| anyhow!("Failed to decode public key"))?;
-
-                let salsa = crypto::SalsaBox::new(&public_key, &secret_key);
-                let chall = challenges.generate_next::<crypto::Random>(user.clone(), door, &salsa);
-
-                let chall = ipc::Challenge {
-                    user,
-                    challenge: BASE64.encode(&chall.encrypted),
-                };
-                send_ws(&mut ws_stream, &ipc::BridgeResponse::Challenge(chall)).await?;
+                process_fetch(&mut ws_stream, config, &secret_key, challenges, fetch).await?
             }
             ipc::ClientRequest::Solve(solve) => {
-                debug!("Received solve attempt: {solve:?}");
-                let Some(user) = solve.user else { continue };
-                let Ok(code) = BASE64.decode(solve.code.as_bytes()) else {
-                    continue;
-                };
-
-                let userdata = config
-                    .users
-                    .get(&user)
-                    .with_context(|| anyhow!("Failed to find user: {user:?}"))?;
-
-                let public_key = crypto::public_key(&userdata.public_key)
-                    .map_err(|_| anyhow!("Failed to decode public key"))?;
-
-                if let Ok(door) = challenges.verify(user.clone(), solve.door.clone(), &code) {
-                    info!("Challenge successfully solved (user={user:?}, door={door:?})",);
-                    let salsa = crypto::SalsaBox::new(&public_key, &secret_key);
-                    challenges.reset::<crypto::Random>(user.clone(), door.clone(), &salsa);
-
-                    let door = config
-                        .doors
-                        .get(&door)
-                        .with_context(|| anyhow!("Door is not known {door:?}"))?;
-
-                    if let (Some(mac), Some(public_key)) = (&door.mac, &door.public_key) {
-                        let public_key = crypto::public_key(public_key)
-                            .map_err(|_| anyhow!("Failed to parse public key"))?;
-
-                        let salsa = crypto::SalsaBox::new(&public_key, &secret_key);
-                        if let Err(err) = ble::open(&salsa, mac, WS_BLE_TIMEOUT).await {
-                            error!("Failed to open door: {err:#}");
-                        } else {
-                            info!("Successfully opened door");
-                        }
-                    }
-                } else {
-                    warn!(
-                        "Solve attempt failed (user={user:?}, door={:?})",
-                        solve.door
-                    );
-                }
+                process_solve(&mut ws_stream, config, &secret_key, challenges, solve).await?
             }
         }
     }

@@ -1,9 +1,11 @@
 use crate::errors::*;
+use crate::ws;
 use d3xs_protocol::ipc;
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
+use tokio::time;
 use warp::http::StatusCode;
 use warp::ws::Message;
 use warp::ws::WebSocket;
@@ -14,8 +16,12 @@ async fn ws_connect(
     event_tx: broadcast::Sender<ipc::Event>,
     mut request_rx: broadcast::Receiver<ipc::ClientRequest>,
 ) -> Result<()> {
+    let mut ping = time::interval(ws::WS_PING_INTERVAL);
+
     loop {
         tokio::select! {
+            // ping clients at interval
+            _ = ping.tick() => ws.send(Message::ping(vec![])).await?,
             // forward all messages from websocket clients to bridge
             msg = request_rx.recv() => if let Ok(msg) = msg {
                 let data = serde_json::to_string(&msg)?;
@@ -26,10 +32,7 @@ async fn ws_connect(
             // receive messages from bridge (config updates and challenges)
             msg = ws.next() => if let Some(msg) = msg {
                 let Ok(msg) = msg else { continue };
-                let Ok(msg) = msg.to_str() else {
-                    warn!("bridge sent invalid utf-8");
-                    continue;
-                };
+                let Ok(msg) = msg.to_str() else { continue };
                 let Ok(event) = serde_json::from_str::<ipc::BridgeResponse>(msg) else {
                     warn!("bridge sent malformed json");
                     continue;
