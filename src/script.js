@@ -35,23 +35,20 @@ export default function() {
             slider.style.marginLeft = xDiff + 'px';
         }
 
-        slider.addEventListener('touchstart', function(event) {
-            xTouchDown = event.touches[0].clientX;
-        }, false);
-        slider.addEventListener('touchmove', function(event) {
+        function dragMove(xTouchCurrent) {
             if (!xTouchDown) {
                 return;
             }
 
-            const xTouchCurrent = event.touches[0].clientX;
             const xDiff = xTouchCurrent - xTouchDown;
             if (xDiff <= 0) {
                 return;
             }
 
             updateSlider(xDiff);
-        }, false);
-        slider.addEventListener('touchend', function(_event) {
+        }
+
+        function dragRelease() {
             if (execute) {
                 if (ws) {
                     const msg = JSON.stringify({
@@ -67,10 +64,38 @@ export default function() {
             slider.style.marginLeft = null;
             xTouchDown = null;
             updateSlider(0);
+        }
+
+        // touch events
+        slider.addEventListener('touchstart', function(event) {
+            xTouchDown = event.touches[0].clientX;
+        }, false);
+        slider.addEventListener('touchmove', function(event) {
+            dragMove(event.touches[0].clientX);
+        }, false);
+        slider.addEventListener('touchend', function(_event) {
+            dragRelease();
         }, false);
 
-        updateSlider(0);
+        // mouse events
+        slider.addEventListener('mousedown', function(_event) {
+            xTouchDown = event.clientX - slider.getBoundingClientRect().left;
 
+            function mousemove(event) {
+                dragMove(event.pageX);
+            }
+            function mouseup(_event) {
+                document.removeEventListener('mousemove', mousemove);
+                document.removeEventListener('mouseup', mouseup);
+                dragRelease();
+            }
+
+            document.addEventListener('mousemove', mousemove);
+            document.addEventListener('mouseup', mouseup);
+        }, false);
+
+        // add to document
+        updateSlider(0);
         const h1 = document.createElement('h1');
         h1.textContent = label;
         container.appendChild(h1);
@@ -85,13 +110,13 @@ export default function() {
             container.classList.remove('offline');
             const data = JSON.parse(event.data);
 
-            if (data.type === 'challenge') {
+            if (data['type'] === 'challenge') {
                 if (pendingChallenge === null) {
                     return;
                 }
 
                 // put challenge to html
-                challenge.value = data.challenge;
+                challenge.value = data['challenge'];
 
                 // invoke web assembly
                 if (!wasm.solve_challenge()) {
@@ -110,13 +135,13 @@ export default function() {
                 pendingChallenge = null;
                 console.log('send cmd to websocket:', msg);
                 ws.send(msg);
-            } else if (data.type === 'config') {
+            } else if (data['type'] === 'config') {
                 while (container.firstChild) {
                     container.removeChild(container.lastChild);
                 }
 
-                public_key.value = data.public_key;
-                data.doors.forEach(data => {
+                public_key.value = data['public_key'];
+                data['doors'].forEach(data => {
                     createSlider(data['id'], data['label']);
                 });
             }
