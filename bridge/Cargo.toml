@@ -1,6 +1,10 @@
 [package]
 name = "d3xs-bridge"
 version = "0.1.0"
+description = "Physical access control (bridge)"
+authors = ["kpcyrd <git@rxv.cc>"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/kpcyrd/d3xs"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
