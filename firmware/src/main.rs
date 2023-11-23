@@ -165,7 +165,9 @@ fn main() -> ! {
     loop {
         {
             let mut challenges = challenges.lock();
-            challenges.generate_next::<chall::Random>(&salsa)
+            if let Err(err) = challenges.generate_next::<chall::Random>(&salsa) {
+                println!("[🔥] Failed to generate challenge: {err:#}");
+            }
         };
 
         // lock mutex, read action and immediately release mutex

@@ -61,14 +61,26 @@ impl RingBuffer {
         self.challenges[self.cursor].as_ref()
     }
 
-    pub fn generate_next<R: crypto::Rng>(&mut self, salsa: &crypto::SalsaBox) -> &Challenge {
+    pub fn generate_next<R: crypto::Rng>(
+        &mut self,
+        salsa: &crypto::SalsaBox,
+    ) -> Result<&Challenge> {
         if self.challenges.len() - 1 == self.cursor {
             self.cursor = 0;
         } else {
             self.cursor += 1;
         }
-        self.challenges[self.cursor] = Some(Challenge::generate::<R>(salsa).unwrap());
-        self.challenges[self.cursor].as_ref().unwrap()
+
+        match Challenge::generate::<R>(salsa) {
+            Ok(chall) => {
+                let chall = self.challenges[self.cursor].insert(chall);
+                Ok(chall)
+            }
+            Err(err) => {
+                self.challenges[self.cursor] = None;
+                Err(err)
+            }
+        }
     }
 
     pub fn verify(&self, secret: &[u8]) -> Result<()> {
@@ -97,7 +109,7 @@ impl UserDoorMap {
         user: String,
         door: String,
         salsa: &crypto::SalsaBox,
-    ) -> &Challenge {
+    ) -> Result<&Challenge> {
         let ring = self.map.entry((user, door)).or_default();
         ring.generate_next::<R>(salsa)
     }
