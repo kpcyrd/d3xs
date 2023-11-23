@@ -53,14 +53,12 @@ pub struct RingBuffer {
 }
 
 impl RingBuffer {
-    pub fn new<R: crypto::Rng>(salsa: &crypto::SalsaBox) -> RingBuffer {
-        let mut ring = RingBuffer::default();
-        ring.challenges[0] = Some(Challenge::generate::<R>(salsa).unwrap());
-        ring
+    pub fn new() -> RingBuffer {
+        RingBuffer::default()
     }
 
-    pub fn current(&self) -> &Challenge {
-        self.challenges[self.cursor].as_ref().unwrap()
+    pub fn current(&self) -> Option<&Challenge> {
+        self.challenges[self.cursor].as_ref()
     }
 
     pub fn generate_next<R: crypto::Rng>(&mut self, salsa: &crypto::SalsaBox) -> &Challenge {
@@ -83,8 +81,8 @@ impl RingBuffer {
         Err(Error::AuthError)
     }
 
-    pub fn reset<R: crypto::Rng>(&mut self, salsa: &crypto::SalsaBox) {
-        *self = RingBuffer::new::<R>(salsa)
+    pub fn reset(&mut self) {
+        *self = RingBuffer::default()
     }
 }
 
@@ -100,10 +98,7 @@ impl UserDoorMap {
         door: String,
         salsa: &crypto::SalsaBox,
     ) -> &Challenge {
-        let ring = self
-            .map
-            .entry((user, door))
-            .or_insert_with(|| RingBuffer::new::<R>(salsa));
+        let ring = self.map.entry((user, door)).or_default();
         ring.generate_next::<R>(salsa)
     }
 
@@ -116,7 +111,7 @@ impl UserDoorMap {
         }
     }
 
-    pub fn reset<R: crypto::Rng>(&mut self, user: String, door: String, salsa: &crypto::SalsaBox) {
-        self.map.insert((user, door), RingBuffer::new::<R>(salsa));
+    pub fn reset(&mut self, user: String, door: String) {
+        self.map.entry((user, door)).or_default().reset();
     }
 }

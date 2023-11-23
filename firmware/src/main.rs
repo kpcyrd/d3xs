@@ -4,7 +4,7 @@ mod keys;
 
 use d3xs_firmware::chall;
 use d3xs_firmware::errors::*;
-use d3xs_protocol::chall::Challenge;
+use d3xs_protocol::chall::RingBuffer;
 use d3xs_protocol::crypto;
 use data_encoding::BASE64;
 use esp32_nimble::utilities::{mutex::Condvar, mutex::Mutex, BleUuid};
@@ -86,7 +86,7 @@ fn main() -> ! {
     let mut ws2812 = Ws2812Esp32Rmt::new(0, 8).unwrap();
     ws2812.write([LED_OFF].into_iter()).unwrap();
 
-    let latest_nonce: Arc<Mutex<Option<Challenge>>> = Arc::new(Mutex::new(None));
+    let challenges: Arc<Mutex<RingBuffer>> = Arc::new(Mutex::new(RingBuffer::new()));
     let main_action: Arc<Mutex<Option<MainAction>>> = Arc::new(Mutex::new(None));
     let notify: Arc<Condvar> = Arc::new(Condvar::new());
     let notify_mutex = Mutex::new(());
@@ -113,8 +113,8 @@ fn main() -> ! {
         .lock()
         .create_characteristic(CHAR_UUID, NimbleProperties::READ | NimbleProperties::WRITE);
 
-    let latest_nonce_read = latest_nonce.clone();
-    let latest_nonce_write = latest_nonce.clone();
+    let challenges_read = challenges.clone();
+    let challenges_write = challenges.clone();
     let main_action_write = main_action.clone();
     let notify_write = notify.clone();
 
@@ -123,7 +123,7 @@ fn main() -> ! {
         .on_read(move |attr, _| {
             println!("[🎲] sending nonce");
 
-            if let Some(chall) = &*latest_nonce_read.lock() {
+            if let Some(chall) = challenges_read.lock().current() {
                 attr.set_value(&chall.encrypted);
             } else {
                 attr.set_value(&[]);
@@ -133,17 +133,15 @@ fn main() -> ! {
             let buf = args.recv_data;
             println!("[🔍] wrote to writable characteristic: {buf:?}");
 
-            let solved = if let Some(chall) = &*latest_nonce_write.lock() {
-                chall.verify(buf).is_ok()
-            } else {
-                false
-            };
-
-            let (action, ret) = if solved {
-                println!("[✅] success");
-                (MainAction::LedSuccess, 0)
-            } else {
-                (MainAction::LedFail, 1)
+            let (action, ret) = {
+                let mut chall = challenges_write.lock();
+                if chall.verify(buf).is_ok() {
+                    println!("[✅] success");
+                    chall.reset();
+                    (MainAction::LedSuccess, 0)
+                } else {
+                    (MainAction::LedFail, 1)
+                }
             };
 
             let mut guard = main_action_write.lock();
@@ -165,9 +163,10 @@ fn main() -> ! {
     ble_advertising.start().unwrap();
 
     loop {
-        if let Ok(chall) = Challenge::generate::<chall::Random>(&salsa) {
-            *latest_nonce.lock() = Some(chall);
-        }
+        {
+            let mut challenges = challenges.lock();
+            challenges.generate_next::<chall::Random>(&salsa)
+        };
 
         // lock mutex, read action and immediately release mutex
         let action = { main_action.lock().take() };

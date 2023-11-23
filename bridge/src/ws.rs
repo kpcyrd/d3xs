@@ -74,18 +74,9 @@ async fn process_solve(
         return Ok(());
     };
 
-    let userdata = config
-        .users
-        .get(&user)
-        .with_context(|| anyhow!("Failed to find user: {user:?}"))?;
-
-    let public_key = crypto::public_key(&userdata.public_key)
-        .map_err(|_| anyhow!("Failed to decode public key"))?;
-
     if let Ok(door) = challenges.verify(user.clone(), solve.door.clone(), &code) {
         info!("Challenge successfully solved (user={user:?}, door={door:?})",);
-        let salsa = crypto::SalsaBox::new(&public_key, secret_key);
-        challenges.reset::<crypto::Random>(user.clone(), door.clone(), &salsa);
+        challenges.reset(user.clone(), door.clone());
 
         let door = config
             .doors
