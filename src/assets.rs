@@ -2,6 +2,8 @@ use std::env;
 
 pub const SCRIPT_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/script.js"));
 pub const STYLE_CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/style.css"));
+pub const FAVICON: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/favicon.png"));
+pub const APPICON: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/appicon.png"));
 pub const WASM_BINDGEN: &str = include_str!(concat!(env!("OUT_DIR"), "/wasm-bindgen.js"));
 pub const WASM: &[u8] = include_bytes!("../protocol/pkg/d3xs_protocol_bg.wasm");
 
@@ -18,6 +20,22 @@ pub fn style_css_name() -> &'static str {
         "style.css"
     } else {
         STYLE_CSS_NAME
+    }
+}
+
+pub fn favicon_name() -> &'static str {
+    if DEBUG_MODE || env::var("D3XS_PATCH_FAVICON_FILE").is_ok() {
+        "favicon.png"
+    } else {
+        FAVICON_NAME
+    }
+}
+
+pub fn appicon_name() -> &'static str {
+    if DEBUG_MODE || env::var("D3XS_PATCH_APPICON_FILE").is_ok() {
+        "appicon.png"
+    } else {
+        APPICON_NAME
     }
 }
 

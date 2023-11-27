@@ -54,6 +54,24 @@ fn css(consts: &mut String, path: &Path, debug_mode: bool) {
     fs::write(path, out).unwrap();
 }
 
+fn favicon(consts: &mut String, path: &Path) {
+    let path = path.join("favicon.png");
+
+    let icon = include_bytes!("contrib/favicon.png");
+    let filename = id(&icon[..]) + ".png";
+    writeln!(consts, r#"const FAVICON_NAME: &str = "{}";"#, filename).unwrap();
+    fs::write(path, icon).unwrap();
+}
+
+fn appicon(consts: &mut String, path: &Path) {
+    let path = path.join("appicon.png");
+
+    let icon = include_bytes!("contrib/appicon.png");
+    let filename = id(&icon[..]) + ".png";
+    writeln!(consts, r#"const APPICON_NAME: &str = "{}";"#, filename).unwrap();
+    fs::write(path, icon).unwrap();
+}
+
 fn wasm(consts: &mut String, path: &Path, debug_mode: bool) {
     let path = path.join("wasm-bindgen.js");
 
@@ -88,6 +106,8 @@ fn main() {
     let mut consts = String::new();
     js(&mut consts, &path, debug_mode);
     css(&mut consts, &path, debug_mode);
+    favicon(&mut consts, &path);
+    appicon(&mut consts, &path);
     wasm(&mut consts, &path, debug_mode);
     write_consts(&mut consts, &path, debug_mode);
 
@@ -95,7 +115,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/script.js");
     println!("cargo:rerun-if-changed=src/style.css");
-    println!("cargo:rerun-if-changed=src/style.css");
+    println!("cargo:rerun-if-changed=contrib/favicon.png");
     println!("cargo:rerun-if-changed=protocol/pkg/d3xs_protocol.js");
     println!("cargo:rerun-if-changed=protocol/pkg/d3xs_protocol_bg.wasm");
 }

@@ -69,6 +69,20 @@ async fn show_style() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
     Ok(reply)
 }
 
+async fn show_favicon() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let Ok(reply) = resolve_asset(assets::FAVICON, "image/png", "D3XS_PATCH_FAVICON_FILE").await else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
+}
+
+async fn show_appicon() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let Ok(reply) = resolve_asset(assets::APPICON, "image/png", "D3XS_PATCH_APPICON_FILE").await else {
+        return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+    Ok(reply)
+}
+
 async fn show_wasm_bindgen() -> Result<Box<dyn warp::Reply>, warp::Rejection> {
     let Ok(reply) = resolve_asset(
         assets::WASM_BINDGEN.as_bytes(),
@@ -108,6 +122,8 @@ async fn show_page(
         &json!({
             "script_name": assets::script_js_name(),
             "style_name": assets::style_css_name(),
+            "favicon_name": assets::favicon_name(),
+            "appicon_name": assets::appicon_name(),
             "wasm_bindgen_name": assets::wasm_bindgen_name(),
             "wasm_name": assets::wasm_name(),
         }),
@@ -168,6 +184,16 @@ async fn main() -> Result<()> {
         .and(warp::path(assets::style_css_name()))
         .and(warp::path::end())
         .and_then(show_style);
+    let show_favicon = warp::get()
+        .and(warp::path("assets"))
+        .and(warp::path(assets::favicon_name()))
+        .and(warp::path::end())
+        .and_then(show_favicon);
+    let show_appicon = warp::get()
+        .and(warp::path("assets"))
+        .and(warp::path(assets::appicon_name()))
+        .and(warp::path::end())
+        .and_then(show_appicon);
     let show_wasm_bindgen = warp::get()
         .and(warp::path("assets"))
         .and(warp::path(assets::wasm_bindgen_name()))
@@ -200,6 +226,8 @@ async fn main() -> Result<()> {
     let routes = warp::any().and(
         show_script
             .or(show_style)
+            .or(show_favicon)
+            .or(show_appicon)
             .or(show_wasm)
             .or(show_wasm_bindgen)
             .or(ws_user)
