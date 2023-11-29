@@ -1,7 +1,9 @@
-FROM alpine:3.18
+# temporarily build on :edge until wasm-bindgen is available in a release
+
+FROM alpine:edge
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 RUN --mount=type=cache,target=/var/cache/apk ln -vs /var/cache/apk /etc/apk/cache && \
-    apk add musl-dev cargo wasm-pack make pkgconf dbus-dev binaryen && \
+    apk add binaryen cargo dbus-dev make musl-dev pkgconf wasm-bindgen wasm-pack && \
     rm /etc/apk/cache
 WORKDIR /app
 COPY ./ /app
@@ -15,7 +17,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/target/release/d3xs* .
 RUN strip d3xs d3xs-bridge
 
-FROM alpine:3.18
+FROM alpine:edge
 RUN apk add libgcc dbus-libs
 COPY --from=0 /app/d3xs /app/d3xs-bridge /usr/bin
 USER 1000
