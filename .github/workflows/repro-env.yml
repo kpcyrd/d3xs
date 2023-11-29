@@ -34,6 +34,12 @@ jobs:
     - name: Print sha256 of binary
       run: sha256sum target-firmware/riscv32imc-esp-espidf/release/d3xs-firmware
 
+    - name: Upload binary
+      uses: actions/upload-artifact@v3
+      with:
+        name: repro-env-test-firmware
+        path: target-firmware/riscv32imc-esp-espidf/release/d3xs-firmware
+
   binaries:
     runs-on: ubuntu-22.04
     steps:
