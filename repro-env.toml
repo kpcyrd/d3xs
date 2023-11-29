@@ -1,0 +1,20 @@
+[container]
+image = "docker.io/library/archlinux"
+
+[packages]
+system = "archlinux"
+dependencies = [
+    "binaryen",
+    "clang",
+    "git",
+    "ldproxy",
+    "make",
+    "musl",
+    "python",
+    "rust",
+    "rust-musl",
+    "rust-src",
+    "rust-wasm",
+    "wasm-bindgen",
+    "wasm-pack",
+]

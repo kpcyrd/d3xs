@@ -1,0 +1,53 @@
+name: repro-env
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 9 * * 1'
+
+env:
+  REPRO_ENV_URL: https://github.com/kpcyrd/repro-env/releases/download/v0.3.2/repro-env
+  REPRO_ENV_SHA256: 660995089d32178a63763cf47e1b97e265ef5cf24bf646d16728ca51bf2fab50
+
+jobs:
+  firmware:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install repro-env
+      run: |
+        wget "${REPRO_ENV_URL}"
+        echo "${REPRO_ENV_SHA256}  repro-env" | sha256sum -c -
+        sudo install -m755 repro-env -t /usr/bin
+
+    - name: Build
+      run: |
+        repro-env build -- sh -c '
+          D3XS_DOOR_KEY="w/CSnPJnWTaEIYpEvXvF+ktwh236iSDZfSx6hExB4bM=" \
+          D3XS_BRIDGE_KEY="cW49lkXDeM0wOT8N7QxAWePmWs8xZK1FXt1uQT/pcG4=" \
+          make firmware'
+
+    - name: Print sha256 of binary
+      run: sha256sum target-firmware/riscv32imc-esp-espidf/release/d3xs-firmware
+
+  binaries:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install repro-env
+      run: |
+        wget "${REPRO_ENV_URL}"
+        echo "${REPRO_ENV_SHA256}  repro-env" | sha256sum -c -
+        sudo install -m755 repro-env -t /usr/bin
+
+    - name: Build
+      run: |
+        repro-env build -- sh -c 'make wasm && RUSTFLAGS="-C strip=symbols" cargo build --release --locked -p d3xs -p d3xs-bridge --target x86_64-unknown-linux-musl --features vendored'
+
+    - name: Print sha256 of binaries
+      run: sha256sum target/x86_64-unknown-linux-musl/release/{d3xs,d3xs-bridge}
